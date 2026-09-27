@@ -24,8 +24,9 @@ Las partidas viven en memoria del servidor: es muy rápido y suficiente para un 
 
 ```
 packages/shared/     Tipos, controles de tiempo y mensajes compartidos por cliente y servidor
+packages/engine/     Lógica pura de una partida: jugadas, relojes, final, serialización (sin temporizadores)
 apps/server/         Servidor de partidas (HTTP + WebSocket)
-  src/game.ts        Lógica de una partida: validación de jugadas, relojes, final de partida
+  src/game.ts        El motor con reloj de pared, un setTimeout por partida y presencia
   src/store.ts       Partidas en memoria, revanchas y limpieza
   src/index.ts       Rutas HTTP, WebSockets, emparejamiento
   test/              Pruebas unitarias y de extremo a extremo
@@ -49,7 +50,7 @@ pnpm dev             # servidor en :3001 y frontend en http://localhost:5173
 Vite reenvía `/api` y `/ws` al servidor. Para probar una partida contigo mismo, abre el enlace en otro navegador o en una ventana privada: cada navegador es un jugador distinto.
 
 ```bash
-pnpm test            # 11 pruebas: motor de partidas + servidor real con dos clientes WebSocket
+pnpm test            # motor de partidas + servidor real con dos clientes WebSocket
 pnpm check           # comprobación de tipos
 pnpm build           # compila servidor y frontend
 ```

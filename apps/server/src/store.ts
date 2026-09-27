@@ -47,7 +47,7 @@ export class GameStore {
     let id = randomId();
     while (this.games.has(id)) id = randomId();
     const game = new Game(id, tc);
-    game.onChange = (g) => this.onChange(g);
+    game.onChange = () => this.onChange(game);
     this.games.set(id, game);
     return game;
   }
@@ -63,9 +63,7 @@ export class GameStore {
 
   rematch(game: Game, by: Color, offer: boolean) {
     if (!game.offerRematch(by, offer)) return;
-    // Revancha con los colores cambiados.
-    const white = game.seats.black!;
-    const black = game.seats.white!;
+    const { white, black } = game.rematchSeats();
     const next = this.pair(game.tc, white, black);
     if (!next) return;
     game.next = next.id;

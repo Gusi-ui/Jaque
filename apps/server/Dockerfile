@@ -10,11 +10,13 @@ RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json packages/shared/
+COPY packages/engine/package.json packages/engine/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @jaque/server...
 
 COPY packages/shared packages/shared
+COPY packages/engine packages/engine
 COPY apps/server apps/server
 RUN pnpm --filter @jaque/server build \
   # node_modules solo con las dependencias de producción

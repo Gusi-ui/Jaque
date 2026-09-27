@@ -11,10 +11,10 @@
     "test": "tsx --test --test-force-exit test/*.test.ts"
   },
   "dependencies": {
-    "chess.js": "^1.4.0",
     "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.71.0"
   },
   "devDependencies": {
+    "@jaque/engine": "workspace:*",
     "@jaque/shared": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
