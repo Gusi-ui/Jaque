@@ -1,6 +1,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "jaque",
+  // Cuenta Gusideveloper
+  "account_id": "d1f835df40f3c1f57b847482a58ed772",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-20",
   "observability": { "enabled": true },
@@ -22,13 +24,12 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom", "Lobby"] }],
 
-  // Historial de partidas terminadas. Sustituye database_id por el que imprime
-  // `wrangler d1 create jaque` (en local da igual el valor).
+  // Historial de partidas terminadas (producción).
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "jaque",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "e6116ccd-b1a1-4dab-9d89-ea05c1daae42",
       "migrations_dir": "migrations"
     }
   ],
@@ -40,5 +41,32 @@
       "namespace_id": "1001",
       "simple": { "limit": 20, "period": 60 }
     }
-  ]
+  ],
+
+  // Previews (rama develop y cualquier otra que no sea main). Cada Preview tiene
+  // sus propios Durable Objects; D1 y el límite de peticiones apuntan a recursos
+  // de desarrollo para no tocar los de producción.
+  // Si cambias la D1 de aquí, cambia también wrangler.preview-migrations.jsonc.
+  "previews": {
+    "durable_objects": {
+      "bindings": [
+        { "name": "GAME_ROOM", "class_name": "GameRoom" },
+        { "name": "LOBBY", "class_name": "Lobby" }
+      ]
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "jaque-develop",
+        "database_id": "5465a498-c6c0-4f31-b171-b0f2f3565a09"
+      }
+    ],
+    "ratelimits": [
+      {
+        "name": "CREATE_LIMITER",
+        "namespace_id": "1002",
+        "simple": { "limit": 20, "period": 60 }
+      }
+    ]
+  }
 }

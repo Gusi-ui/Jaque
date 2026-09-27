@@ -165,36 +165,39 @@ pnpm --filter @jaque/worker test           # pruebas en el runtime de Workers (v
 pnpm --filter @jaque/worker run test:e2e   # pruebas del servidor Node contra wrangler dev
 ```
 
-### Pasos
+### Entornos
 
-Desde `apps/worker` (usa el wrangler instalado en el proyecto):
+| Rama | Dónde se publica | Durable Objects | D1 | Comando |
+|---|---|---|---|---|
+| `main` | Producción, `jaque.<subdominio>.workers.dev` y dominio propio | Los de producción | `jaque` | `pnpm run deploy` |
+| `develop` (y otras) | Preview con su propia URL | Aislados por Preview | `jaque-develop` | `pnpm run preview` |
+
+Ambos comandos (en `apps/worker`) compilan la web, aplican las migraciones de D1 que falten y publican. La cuenta es *Gusideveloper* (`account_id` en `wrangler.jsonc`); las bases `jaque` y `jaque-develop` ya existen.
+
+### Despliegue automático (Workers Builds)
+
+Cloudflare compila y publica al hacer push: `main` → producción, `develop` → Preview. Se configura una sola vez en el panel:
+
+1. *Workers & Pages → Create → Import a repository*, conecta GitHub y elige `Gusi-ui/Jaque`.
+2. Configuración:
+   - **Project name**: `jaque` (debe coincidir con `name` de `wrangler.jsonc`)
+   - **Root directory**: `apps/worker`
+   - **Build command**: `corepack enable && pnpm install --frozen-lockfile`
+   - **Deploy command**: `pnpm run deploy`
+   - **Preview command** (ramas que no son de producción): `pnpm run preview`
+3. En *Settings → Build*: **Branch control** → rama de producción `main`, con las builds de Preview activadas. En **Build watch paths**, incluye `apps/**` y `packages/**`.
+4. **Dominio propio**: *Settings → Domains & Routes → Add → Custom domain* (p. ej. `ajedrez.tudominio.com`). El dominio tiene que estar en la cuenta; el DNS y el certificado se crean solos.
+
+### Despliegue manual
+
+Desde `apps/worker`, con `pnpm exec wrangler login` hecho:
 
 ```bash
-cd apps/worker
+pnpm run deploy     # producción (solo desde main)
+pnpm run preview    # Preview de la rama actual
 ```
 
-1. **Inicia sesión** en tu cuenta de Cloudflare:
-   ```bash
-   pnpm exec wrangler login
-   ```
-2. **Crea la base de datos** D1:
-   ```bash
-   pnpm exec wrangler d1 create jaque
-   ```
-3. **Copia el `database_id`** que imprime el comando anterior en `apps/worker/wrangler.jsonc`, en `d1_databases[0].database_id`, sustituyendo `00000000-0000-0000-0000-000000000000`.
-4. **Aplica las migraciones** de D1 (en local y en remoto):
-   ```bash
-   pnpm run db:migrate
-   ```
-5. **Despliega** (compila la web y ejecuta `wrangler deploy`). Desde la raíz del repositorio:
-   ```bash
-   pnpm --filter @jaque/worker run deploy
-   ```
-   Usa `run deploy`: `pnpm --filter … deploy` sin `run` es otro comando de pnpm.
-   El Worker queda publicado en `https://jaque.<tu-subdominio>.workers.dev`.
-6. **Dominio propio**: en el panel de Cloudflare, *Workers & Pages → jaque → Settings → Domains & Routes → Add → Custom domain*, e indica tu dominio o subdominio (p. ej. `ajedrez.tudominio.com`). El dominio tiene que estar en tu cuenta de Cloudflare. El DNS y el certificado se crean solos.
-
-Para actualizar, repite el paso 5 (y el 4 si hay migraciones nuevas). Las partidas en curso no se interrumpen.
+Para crear el entorno desde cero en otra cuenta: `pnpm exec wrangler d1 create jaque` y `… jaque-develop`, copia los `database_id` en `wrangler.jsonc` (y el de develop también en `wrangler.preview-migrations.jsonc`), y cambia `account_id`.
 
 Para consultar el historial:
 
