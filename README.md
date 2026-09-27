@@ -61,6 +61,13 @@ pnpm check           # comprobación de tipos
 pnpm build           # compila servidor y frontend
 ```
 
+### Ramas
+
+- **`develop`**: desarrollo. Todo se sube aquí primero; el CI (GitHub Actions) comprueba tipos, pruebas, compilación y e2e en cada push.
+- **`main`**: producción. Solo se actualiza con un pull request desde `develop` cuando el CI está en verde.
+
+Las dos ramas están protegidas (no se pueden borrar ni forzar).
+
 ### Protocolo
 
 - `POST /api/games` `{ player, tc: { initial, increment }, color }` → `{ id }` crea una partida con amigo.

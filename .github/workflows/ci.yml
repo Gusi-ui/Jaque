@@ -1,0 +1,28 @@
+# Comprueba cada push a develop y cada pull request hacia main.
+# main exige que este job ("CI") pase antes de fusionar.
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: pnpm (versión de packageManager)
+        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+      - name: Extremo a extremo contra wrangler dev
+        run: pnpm --filter @jaque/worker run test:e2e
