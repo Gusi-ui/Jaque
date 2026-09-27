@@ -18,7 +18,9 @@ Ajedrez online minimalista y rápido, al estilo de lichess. Sin registro: eliges
 | Proxy / HTTPS | Caddy 2 |
 | Despliegue | Docker Compose en un VPS ARM64 (Oracle Cloud Always Free) con Cloudflare como proxy |
 
-Las partidas viven en memoria del servidor: es muy rápido y suficiente para un único VPS. Un reinicio del servidor pierde las partidas en curso (ver [próximos pasos](#próximos-pasos)).
+Hay dos formas de desplegarlo: en un VPS con Docker (abajo) o [100 % en Cloudflare](#despliegue-en-cloudflare), sin servidor propio.
+
+En el VPS, las partidas viven en memoria del servidor: es muy rápido y suficiente para un único VPS. Un reinicio del servidor pierde las partidas en curso (ver [próximos pasos](#próximos-pasos)).
 
 ## Estructura
 
@@ -33,6 +35,10 @@ apps/server/         Servidor de partidas (HTTP + WebSocket)
 apps/web/            Frontend SvelteKit
   src/routes/        Portada (lobby) y página de partida /[id]
   src/lib/           Tablero, partida, conexión, sonidos
+apps/worker/         Versión Cloudflare: Worker + Durable Objects + D1 (mismo protocolo)
+  src/game-room.ts   Durable Object de una partida (WebSockets con hibernación, alarmas)
+  src/lobby.ts       Durable Object del lobby (emparejamiento y estadísticas)
+  migrations/        Esquema de D1 (historial de partidas)
 deploy/              Caddyfile, Dockerfile del frontend y certificados
 docker-compose.yml
 ```
@@ -121,6 +127,73 @@ La primera construcción tarda unos minutos en ARM. Comprueba `https://tu-domini
 ### Probar en el VPS sin Cloudflare
 
 Con `TLS_MODE=internal` en `.env`, Caddy usa un certificado autofirmado y puedes entrar por `https://IP-del-servidor` aceptando el aviso del navegador.
+
+## Despliegue en Cloudflare
+
+Alternativa a la versión VPS: todo corre en Cloudflare (Workers + Durable Objects + D1) y no hay servidor que mantener. El frontend es el mismo y habla el mismo protocolo. Necesitas el plan de pago de Workers.
+
+### Cómo funciona
+
+- El **Worker** (`apps/worker/src/index.ts`) sirve `apps/web/build` como *static assets* y atiende `/api/*` y `/ws/*`.
+- Cada partida es un **Durable Object** `GameRoom` con almacenamiento SQLite. Usa WebSockets con hibernación: guarda el estado tras cada cambio y lo reconstruye al despertar. Los relojes funcionan con alarmas, así que la bandera cae aunque nadie esté conectado.
+- Un único Durable Object `Lobby` empareja las búsquedas y envía las estadísticas solo cuando algo cambia.
+- Los pings del cliente (cada 25 s) se contestan sin despertar a los objetos, así que no consumen CPU.
+- Las partidas terminadas (salvo las anuladas) se guardan en **D1**, en la tabla `games`.
+
+### Diferencias con la versión VPS
+
+| | VPS (Docker) | Cloudflare |
+|---|---|---|
+| Partidas en curso | En memoria: un reinicio o despliegue las termina | En Durable Objects: **sobreviven a los despliegues** |
+| Mantenimiento | Sistema, Docker, certificados, puertos | **Ninguno**: no hay servidor |
+| Historial | No | **Sí**, en D1 |
+| Límite de peticiones | Regla WAF manual | Binding de Rate Limiting (20 partidas/min por IP) |
+| Coste | Gratis dentro de Oracle Always Free | Plan de pago de Workers |
+
+### Desarrollo y pruebas
+
+```bash
+pnpm --filter @jaque/worker run dev        # compila la web, migra D1 en local y arranca wrangler dev en :8787
+pnpm --filter @jaque/worker test           # pruebas en el runtime de Workers (vitest)
+pnpm --filter @jaque/worker run test:e2e   # pruebas del servidor Node contra wrangler dev
+```
+
+### Pasos
+
+Desde `apps/worker` (usa el wrangler instalado en el proyecto):
+
+```bash
+cd apps/worker
+```
+
+1. **Inicia sesión** en tu cuenta de Cloudflare:
+   ```bash
+   pnpm exec wrangler login
+   ```
+2. **Crea la base de datos** D1:
+   ```bash
+   pnpm exec wrangler d1 create jaque
+   ```
+3. **Copia el `database_id`** que imprime el comando anterior en `apps/worker/wrangler.jsonc`, en `d1_databases[0].database_id`, sustituyendo `00000000-0000-0000-0000-000000000000`.
+4. **Aplica las migraciones** de D1 (en local y en remoto):
+   ```bash
+   pnpm run db:migrate
+   ```
+5. **Despliega** (compila la web y ejecuta `wrangler deploy`). Desde la raíz del repositorio:
+   ```bash
+   pnpm --filter @jaque/worker run deploy
+   ```
+   Usa `run deploy`: `pnpm --filter … deploy` sin `run` es otro comando de pnpm.
+   El Worker queda publicado en `https://jaque.<tu-subdominio>.workers.dev`.
+6. **Dominio propio**: en el panel de Cloudflare, *Workers & Pages → jaque → Settings → Domains & Routes → Add → Custom domain*, e indica tu dominio o subdominio (p. ej. `ajedrez.tudominio.com`). El dominio tiene que estar en tu cuenta de Cloudflare. El DNS y el certificado se crean solos.
+
+Para actualizar, repite el paso 5 (y el 4 si hay migraciones nuevas). Las partidas en curso no se interrumpen.
+
+Para consultar el historial:
+
+```bash
+pnpm exec wrangler d1 execute jaque --remote --command "SELECT id, status, winner, moves FROM games ORDER BY ended_at DESC LIMIT 10"
+```
 
 ## Próximos pasos
 
