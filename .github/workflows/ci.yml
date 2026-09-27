@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # La caché automática de v5 necesita pnpm antes de que corepack lo active.
+          package-manager-cache: false
       - name: pnpm (versión de packageManager)
         run: corepack enable
       - run: pnpm install --frozen-lockfile
