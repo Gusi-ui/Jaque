@@ -38,19 +38,20 @@ docker-compose.yml
 
 ## Desarrollo local
 
-Requisitos: Node 22 o superior.
+Requisitos: Node 22 o superior y [pnpm](https://pnpm.io) (la versión está fijada en `packageManager`; con `corepack enable` se usa la correcta automáticamente).
 
 ```bash
-npm install
-npm run dev          # servidor en :3001 y frontend en http://localhost:5173
+corepack enable      # una sola vez
+pnpm install
+pnpm dev             # servidor en :3001 y frontend en http://localhost:5173
 ```
 
 Vite reenvía `/api` y `/ws` al servidor. Para probar una partida contigo mismo, abre el enlace en otro navegador o en una ventana privada: cada navegador es un jugador distinto.
 
 ```bash
-npm test             # 11 pruebas: motor de partidas + servidor real con dos clientes WebSocket
-npm run check        # comprobación de tipos
-npm run build        # compila servidor y frontend
+pnpm test            # 11 pruebas: motor de partidas + servidor real con dos clientes WebSocket
+pnpm check           # comprobación de tipos
+pnpm build           # compila servidor y frontend
 ```
 
 ### Protocolo

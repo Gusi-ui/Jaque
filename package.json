@@ -5,12 +5,14 @@
   "description": "Ajedrez online minimalista, estilo lichess",
   "license": "GPL-3.0-or-later",
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
   "scripts": {
-    "dev": "npm run dev -w @jaque/server & npm run dev -w @jaque/web",
-    "build": "npm run build -w @jaque/server && npm run build -w @jaque/web",
-    "check": "npm run check -w @jaque/web && npm run check -w @jaque/server",
-    "test": "npm run test -w @jaque/server"
+    "dev": "pnpm --filter @jaque/server --filter @jaque/web --parallel dev",
+    "build": "pnpm --filter @jaque/server build && pnpm --filter @jaque/web build",
+    "check": "pnpm --filter @jaque/web check && pnpm --filter @jaque/server check",
+    "test": "pnpm --filter @jaque/server test"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.6.0"
 }
