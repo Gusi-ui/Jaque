@@ -1,0 +1,204 @@
+/* ─── Tokens ───────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  --bg: #eceef2;
+  --surface: #ffffff;
+  --surface-2: #e1e4ea;
+  --line: #cfd4dd;
+  --text: #1b2130;
+  --muted: #5d6679;
+  --brass: #9c7424;
+  --brass-soft: rgb(156 116 36 / 0.14);
+  --danger: #b3402e;
+  --online: #3f8f5a;
+
+  /* Tablero: acero claro / acero oscuro */
+  --sq-light: #d9dee5;
+  --sq-dark: #8797a8;
+
+  --font: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --gutter: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #1b2130;
+    --surface: #242b3b;
+    --surface-2: #2e3649;
+    --line: #3a4458;
+    --text: #e7e9ee;
+    --muted: #9aa3b5;
+    --brass: #c9a24a;
+    --brass-soft: rgb(201 162 74 / 0.16);
+    --danger: #e0765f;
+    --online: #6cc08a;
+    --sq-light: #c3cbd6;
+    --sq-dark: #74859a;
+  }
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.btn:hover {
+  border-color: var(--muted);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--brass);
+  border-color: var(--brass);
+  color: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  .btn.primary {
+    color: #1b2130;
+  }
+}
+.btn.primary:hover {
+  filter: brightness(1.06);
+}
+.btn.danger {
+  color: var(--danger);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Tema del tablero (chessground) ───────────────────────────────── */
+.cg-wrap cg-board {
+  background-color: var(--sq-light);
+  background-image: conic-gradient(
+    var(--sq-dark) 0 25%,
+    transparent 0 50%,
+    var(--sq-dark) 0 75%,
+    transparent 0
+  );
+  /* Cada celda del degradado son 2×2 casillas. El patrón es simétrico al girar el tablero. */
+  background-size: 25% 25%;
+  background-repeat: repeat;
+}
+
+cg-board square.last-move {
+  background-color: rgb(201 162 74 / 0.5);
+}
+cg-board square.selected {
+  background-color: rgb(201 162 74 / 0.7);
+}
+cg-board square.move-dest {
+  background: radial-gradient(rgb(27 33 48 / 0.32) 19%, transparent 20%);
+}
+cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0 78%, rgb(27 33 48 / 0.32) 79%);
+}
+cg-board square.move-dest:hover {
+  background: rgb(201 162 74 / 0.4);
+}
+cg-board square.premove-dest {
+  background: radial-gradient(rgb(40 70 150 / 0.4) 19%, transparent 20%);
+}
+cg-board square.oc.premove-dest {
+  background: radial-gradient(transparent 0 78%, rgb(40 70 150 / 0.35) 79%);
+}
+cg-board square.current-premove {
+  background-color: rgb(40 70 150 / 0.45);
+}
+cg-board square.check {
+  background: radial-gradient(ellipse at center, rgb(220 40 30) 0%, rgb(220 40 30 / 0.7) 30%, transparent 75%);
+}
+
+.orientation-white .ranks :nth-child(odd),
+.orientation-white .files :nth-child(odd),
+.orientation-black .ranks :nth-child(even),
+.orientation-black .files :nth-child(even) {
+  color: var(--sq-light);
+}
+.orientation-white .ranks :nth-child(even),
+.orientation-white .files :nth-child(even),
+.orientation-black .ranks :nth-child(odd),
+.orientation-black .files :nth-child(odd) {
+  color: var(--sq-dark);
+}
+/* Doble clase para ganar a chessground.base.css, que se carga después. */
+.cg-wrap coords.files.files {
+  bottom: 1px;
+  left: 0;
+  padding-left: 0;
+}
+.cg-wrap coords.files coord {
+  flex: 1 1 0;
+  text-align: right;
+  padding-right: 4px;
+  text-transform: lowercase;
+}
+.cg-wrap coords {
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 10px;
+  opacity: 1;
+}

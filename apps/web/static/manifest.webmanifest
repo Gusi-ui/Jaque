@@ -1,0 +1,10 @@
+{
+  "name": "jaque",
+  "short_name": "jaque",
+  "description": "Ajedrez online rápido y sin registro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b2130",
+  "theme_color": "#1b2130",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+.env
+deploy/certs/*
+!deploy/certs/.gitkeep
+*.log

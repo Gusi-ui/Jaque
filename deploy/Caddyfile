@@ -1,0 +1,62 @@
+# Caddy detrás de Cloudflare.
+#   DOMAIN   → tu dominio (p. ej. ajedrez.alamia.es)
+#   TLS_MODE → "origin"   certificado de origen de Cloudflare en /etc/caddy/certs (producción)
+#              "internal" certificado autofirmado (pruebas locales sin Cloudflare)
+{
+	servers {
+		# La IP real del jugador llega en Cf-Connecting-Ip; solo nos fiamos de Cloudflare.
+		# Lista actualizada en https://www.cloudflare.com/ips/
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers Cf-Connecting-Ip
+	}
+}
+
+(tls_origin) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+}
+
+(tls_internal) {
+	tls internal
+}
+
+{$DOMAIN:localhost} {
+	import tls_{$TLS_MODE:origin}
+
+	# API y WebSockets al servidor de partidas (Caddy gestiona el Upgrade solo).
+	handle /api/* {
+		reverse_proxy server:3001
+	}
+	handle /ws/* {
+		reverse_proxy server:3001 {
+			# No cortar los WebSockets abiertos al recargar la configuración.
+			stream_close_delay 1h
+		}
+	}
+
+	# SPA: cualquier otra ruta sirve index.html.
+	handle {
+		root * /srv
+		@immutable path /_app/immutable/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		# El resto (index.html, manifest…) se revalida siempre para ver las versiones nuevas.
+		@mutable not path /_app/immutable/*
+		header @mutable Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server {
+			precompressed br gzip
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+		level WARN
+	}
+}

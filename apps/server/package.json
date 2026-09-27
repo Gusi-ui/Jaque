@@ -1,0 +1,26 @@
+{
+  "name": "@jaque/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "node build.mjs",
+    "start": "node dist/index.mjs",
+    "check": "tsc --noEmit",
+    "test": "tsx --test --test-force-exit test/*.test.ts"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.71.0"
+  },
+  "devDependencies": {
+    "@jaque/shared": "*",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "ws": "^8.22.0"
+  }
+}
