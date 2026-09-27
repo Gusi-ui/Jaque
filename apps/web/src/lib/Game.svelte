@@ -20,10 +20,14 @@
   import { playerId } from './player';
   import { sound } from './sound';
   import { colorName, formatClock, resultText, scoreText } from './format';
+  import { BOT_LEVELS } from '@jaque/engine/bot';
+  import { botFor, saveBot, startBot } from './bot';
 
   let { id }: { id: string } = $props();
 
   const player = playerId();
+  /** Si la partida es contra la máquina (en esta pestaña), su configuración. */
+  const bot = $derived(botFor(id));
 
   let game = $state<GameView | null>(null);
   let you = $state<Color | null>(null);
@@ -80,6 +84,7 @@
     you ?? (game?.status === 'waiting' && game.seats.white.taken ? 'black' : 'white')
   );
   const orientation = $derived<Color>(flipped ? opposite(seatColor) : seatColor);
+  const botColor = $derived<Color | null>(bot && you ? opposite(you) : null);
   const playing = $derived(!!game && !!you && game.status === 'started');
   const over = $derived(!!game && isOver(game.status));
   const shownTurn = $derived<Color>(shownPly % 2 === 0 ? 'white' : 'black');
@@ -108,6 +113,8 @@
         applyState(msg.game);
         break;
       case 'redirect':
+        // La máquina también juega la revancha.
+        if (bot) saveBot(msg.id, bot);
         goto(`/${msg.id}`);
         break;
       case 'error':
@@ -157,6 +164,7 @@
 
   onMount(() => {
     let cancelled = false;
+    let botHandle: ReturnType<typeof startBot> | undefined;
     fetch(`/api/games/${id}`).then((r) => {
       if (cancelled) return;
       if (r.status === 404) {
@@ -167,6 +175,7 @@
         onMessage,
         onStatus: (s) => (conn = s)
       });
+      if (bot) botHandle = startBot(id, bot);
     });
 
     const interval = setInterval(() => {
@@ -177,6 +186,7 @@
       cancelled = true;
       clearInterval(interval);
       socket?.close();
+      botHandle?.stop();
     };
   });
 
@@ -301,7 +311,7 @@
     <div class="who">
       <span class="piece-dot {c}" aria-hidden="true"></span>
       <span class="name">
-        {colorName(c)}{#if you === c}<span class="you">tú</span>{/if}
+        {colorName(c)}{#if you === c}<span class="you">tú</span>{:else if botColor === c && bot}<span class="you bot">máquina · {BOT_LEVELS[bot.level].toLowerCase()}</span>{/if}
       </span>
       {#if game?.seats[c].taken}
         <span class="presence" class:on={game.seats[c].online} title={game.seats[c].online ? 'Conectado' : 'Desconectado'}>
@@ -392,7 +402,12 @@
 
     <div class="area-controls">
       {#if game.status === 'waiting'}
-        {#if you}
+        {#if bot && you}
+          <div class="invite">
+            <p class="headline">La máquina se está sentando…</p>
+            <button class="btn" onclick={() => send({ t: 'abort' })}>Cancelar partida</button>
+          </div>
+        {:else if you}
           <div class="invite">
             <p class="headline">Invita a alguien a jugar</p>
             <p class="hint">La primera persona que abra este enlace jugará contra ti.</p>
@@ -590,6 +605,11 @@
     color: var(--brass);
     font-size: 0.78rem;
     font-weight: 700;
+  }
+  .you.bot {
+    white-space: nowrap;
+    background: var(--surface-2);
+    color: var(--muted);
   }
   .presence {
     width: 8px;

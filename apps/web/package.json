@@ -14,6 +14,7 @@
     "chessground": "^9.2.1"
   },
   "devDependencies": {
+    "@jaque/engine": "workspace:*",
     "@jaque/shared": "workspace:*",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.70.3",

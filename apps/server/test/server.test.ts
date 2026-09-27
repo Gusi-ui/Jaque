@@ -5,6 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import WebSocket from 'ws';
+import { bestMove, planBot } from '@jaque/engine/bot';
 
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const BASE = process.env.BASE_URL ?? `http://127.0.0.1:${PORT}`;
@@ -111,6 +112,41 @@ test('keepalive: responde pong al ping, también a los espectadores', async () =
     await c.next((m) => m.t === 'pong');
   }
   for (const c of [spectator, lobby]) c.ws.close();
+});
+
+test('contra la máquina: se sienta, juega, acepta tablas y la revancha', async () => {
+  const r = await fetch(`${BASE}/api/games`, {
+    method: 'POST',
+    body: JSON.stringify({ player: P1, tc: { initial: 300, increment: 0 }, color: 'white' })
+  });
+  const { id } = await r.json();
+  const a = connect(`/ws/game/${id}?player=${P1}`);
+  await a.next((m) => m.t === 'state' && m.game.status === 'waiting');
+
+  // La máquina es un cliente más, con la misma política que usa el navegador.
+  const bot = connect(`/ws/game/${id}?player=${P2}`);
+  let you: string | null = null;
+  bot.ws.on('message', (d) => {
+    const m = JSON.parse(String(d));
+    if (m.t === 'hello') you = m.you;
+    if (m.t !== 'state') return;
+    const plan = planBot(m.game, you as never);
+    for (const msg of plan.send) bot.send(msg);
+    if (plan.think) bot.send({ t: 'move', uci: bestMove(m.game.moves, { level: 1, random: () => 0.9 }), ply: m.game.moves.length });
+  });
+
+  await a.next((m) => m.t === 'state' && m.game.status === 'started');
+  a.send({ t: 'move', uci: 'e2e4', ply: 0 });
+  const reply = await a.next((m) => m.t === 'state' && m.game.moves.length === 2);
+  assert.equal(reply.game.turn, 'white', 'la máquina ha contestado');
+
+  a.send({ t: 'draw', offer: true });
+  await a.next((m) => m.t === 'state' && m.game.status === 'draw');
+
+  a.send({ t: 'rematch', offer: true });
+  const redirect = await a.next((m) => m.t === 'redirect');
+  assert.match(redirect.id, /^[A-Za-z0-9]{8}$/);
+  for (const c of [a, bot]) c.ws.close();
 });
 
 test('rechaza datos no válidos', async () => {

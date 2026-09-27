@@ -13,6 +13,8 @@
   } from '@jaque/shared';
   import { connect, type SocketStatus } from '$lib/socket';
   import { playerId } from '$lib/player';
+  import { newBot, saveBot } from '$lib/bot';
+  import { BOT_LEVELS, type BotLevel } from '@jaque/engine/bot';
 
   const player = playerId();
 
@@ -29,6 +31,14 @@
   let minutes = $state(5);
   let increment = $state(3);
   let color = $state<Color | 'random'>('random');
+  /** El mismo diálogo sirve para jugar con un amigo o contra la máquina. */
+  let mode = $state<'friend' | 'bot'>('friend');
+  let level = $state<BotLevel>(2);
+
+  function openDialog(m: 'friend' | 'bot') {
+    mode = m;
+    dialog?.showModal();
+  }
   const friendTc = $derived({ initial: Math.round(minutes * 60), increment });
 
   let socket: ReturnType<typeof connect<ServerLobbyMsg, ClientLobbyMsg>> | undefined;
@@ -74,6 +84,7 @@
       });
       if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
       const { id } = await res.json();
+      if (mode === 'bot') saveBot(id, newBot(level));
       if (seeking) socket?.send({ t: 'cancel' });
       goto(`/${id}`);
     } catch (err) {
@@ -120,7 +131,10 @@
     </p>
   {/if}
 
-  <button class="btn friend" onclick={() => dialog?.showModal()}>Jugar con un amigo</button>
+  <div class="modes">
+    <button class="btn friend" onclick={() => openDialog('friend')}>Jugar con un amigo</button>
+    <button class="btn friend" onclick={() => openDialog('bot')}>Jugar contra la máquina</button>
+  </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
@@ -136,8 +150,25 @@
 
 <dialog bind:this={dialog} class="friend-dialog" onclick={(e) => e.target === dialog && dialog.close()}>
   <form onsubmit={createFriendGame}>
-    <h2>Jugar con un amigo</h2>
-    <p class="hint">Crearemos un enlace. Quien lo abra primero jugará contra ti.</p>
+    {#if mode === 'bot'}
+      <h2>Jugar contra la máquina</h2>
+      <p class="hint">Una partida normal, con reloj, contra el ordenador.</p>
+
+      <fieldset>
+        <legend>Nivel</legend>
+        <div class="chips">
+          {#each [1, 2, 3] as const as l (l)}
+            <label class="chip">
+              <input type="radio" name="level" value={l} bind:group={level} />
+              <span>{BOT_LEVELS[l]}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+    {:else}
+      <h2>Jugar con un amigo</h2>
+      <p class="hint">Crearemos un enlace. Quien lo abra primero jugará contra ti.</p>
+    {/if}
 
     <fieldset>
       <legend>Minutos por jugador</legend>
@@ -268,6 +299,11 @@
     margin: 0;
     color: var(--brass);
     font-weight: 600;
+  }
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
   }
   .friend {
     width: 100%;
