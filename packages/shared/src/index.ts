@@ -113,27 +113,37 @@ export interface GameView {
 
 // ─── Mensajes WebSocket ──────────────────────────────────────────────
 
+/**
+ * Keepalive del cliente. Se envía y compara como texto exacto: en Cloudflare,
+ * el Durable Object responde sin despertarse (`setWebSocketAutoResponse`).
+ */
+export const PING = '{"t":"ping"}';
+export const PONG = '{"t":"pong"}';
+
 export type ClientGameMsg =
   | { t: 'join' }
   | { t: 'move'; uci: string; ply: number }
   | { t: 'resign' }
   | { t: 'abort' }
   | { t: 'draw'; offer: boolean }
-  | { t: 'rematch'; offer: boolean };
+  | { t: 'rematch'; offer: boolean }
+  | { t: 'ping' };
 
 export type ServerGameMsg =
   | { t: 'hello'; you: Color | null }
   | { t: 'state'; game: GameView }
   | { t: 'redirect'; id: string }
-  | { t: 'error'; msg: string };
+  | { t: 'error'; msg: string }
+  | { t: 'pong' };
 
-export type ClientLobbyMsg = { t: 'seek'; tc: string } | { t: 'cancel' };
+export type ClientLobbyMsg = { t: 'seek'; tc: string } | { t: 'cancel' } | { t: 'ping' };
 
 export type ServerLobbyMsg =
   | { t: 'stats'; players: number; games: number; seeks: Record<string, number> }
   | { t: 'seeking'; tc: string }
   | { t: 'start'; id: string }
-  | { t: 'error'; msg: string };
+  | { t: 'error'; msg: string }
+  | { t: 'pong' };
 
 export interface CreateGameBody {
   player: string;

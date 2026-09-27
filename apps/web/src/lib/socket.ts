@@ -1,3 +1,8 @@
+import { PING, PONG } from '@jaque/shared';
+
+/** Cada cuánto se manda un ping para que proxies y Cloudflare no cierren la conexión. */
+const PING_MS = 25_000;
+
 export type SocketStatus = 'connecting' | 'open' | 'closed';
 
 interface Options<In> {
@@ -16,6 +21,10 @@ export function connect<In, Out>(path: string, { onMessage, onStatus }: Options<
   let timer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
 
+  const ping = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(PING);
+  }, PING_MS);
+
   const open = () => {
     onStatus?.('connecting');
     ws = new WebSocket(url);
@@ -24,6 +33,7 @@ export function connect<In, Out>(path: string, { onMessage, onStatus }: Options<
       onStatus?.('open');
     };
     ws.onmessage = (e) => {
+      if (e.data === PONG) return;
       try {
         onMessage(JSON.parse(e.data));
       } catch (err) {
@@ -56,6 +66,7 @@ export function connect<In, Out>(path: string, { onMessage, onStatus }: Options<
     close() {
       closed = true;
       clearTimeout(timer);
+      clearInterval(ping);
       document.removeEventListener('visibilitychange', onVisible);
       ws?.close();
     }

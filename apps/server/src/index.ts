@@ -106,6 +106,7 @@ function lobbyStats(): ServerLobbyMsg {
 // ─── Mensajes de partida ─────────────────────────────────────────────
 
 function onGameMessage(ws: Socket, data: GameSocketData, game: Game, msg: ClientGameMsg) {
+  if (msg.t === 'ping') return send(ws, { t: 'pong' });
   if (msg.t === 'join') {
     if (data.color) return;
     const color = game.join(data.player);
@@ -225,6 +226,7 @@ app.ws<SocketData>('/ws/lobby', {
     }
     if (msg.t === 'seek') seek(ws, String(msg.tc));
     else if (msg.t === 'cancel') removeSeek(ws);
+    else if (msg.t === 'ping') send(ws, { t: 'pong' });
   },
   close: (ws) => {
     removeSeek(ws);

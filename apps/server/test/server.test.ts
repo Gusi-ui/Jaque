@@ -1,26 +1,29 @@
 // Prueba de extremo a extremo: arranca el servidor real y juega con dos clientes WebSocket.
+// Con BASE_URL (p. ej. http://127.0.0.1:8787) se ejecuta contra un servidor ya arrancado,
+// como la versión de Cloudflare en `wrangler dev`.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import WebSocket from 'ws';
 
 const PORT = 3900 + Math.floor(Math.random() * 90);
-const BASE = `http://127.0.0.1:${PORT}`;
-let server: ChildProcess;
+const BASE = process.env.BASE_URL ?? `http://127.0.0.1:${PORT}`;
+let server: ChildProcess | undefined;
 
 before(async () => {
+  if (process.env.BASE_URL) return;
   server = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1' },
     stdio: ['ignore', 'pipe', 'inherit']
   });
-  await new Promise<void>((ok) => server.stdout!.on('data', (d) => String(d).includes('server') && ok()));
+  await new Promise<void>((ok) => server!.stdout!.on('data', (d) => String(d).includes('server') && ok()));
 });
-after(() => server.kill('SIGTERM'));
+after(() => server?.kill('SIGTERM'));
 
 type Msg = { t: string; [k: string]: any };
 
 function connect(path: string) {
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}${path}`);
+  const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}${path}`);
   const inbox: Msg[] = [];
   const waiters: Array<[(m: Msg) => boolean, (m: Msg) => void]> = [];
   ws.on('message', (d) => {
@@ -92,6 +95,22 @@ test('emparejamiento rápido en el lobby', async () => {
   assert.equal(sa.id, sb.id);
   a.ws.close();
   b.ws.close();
+});
+
+test('keepalive: responde pong al ping, también a los espectadores', async () => {
+  const r = await fetch(`${BASE}/api/games`, {
+    method: 'POST',
+    body: JSON.stringify({ player: P1, tc: { initial: 60, increment: 0 }, color: 'white' })
+  });
+  const { id } = await r.json();
+  const spectator = connect(`/ws/game/${id}?player=${P2}`);
+  const lobby = connect(`/ws/lobby?player=${P1}`);
+  await Promise.all([spectator.opened, lobby.opened]);
+  for (const c of [spectator, lobby]) {
+    c.ws.send('{"t":"ping"}');
+    await c.next((m) => m.t === 'pong');
+  }
+  for (const c of [spectator, lobby]) c.ws.close();
 });
 
 test('rechaza datos no válidos', async () => {
