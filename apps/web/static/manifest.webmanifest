@@ -1,10 +1,17 @@
 {
-  "name": "jaque",
-  "short_name": "jaque",
-  "description": "Ajedrez online rápido y sin registro",
+  "name": "DameMate · Ajedrez online",
+  "short_name": "DameMate",
+  "description": "Ajedrez online gratis y sin registro",
+  "lang": "es",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1b2130",
   "theme_color": "#1b2130",
-  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

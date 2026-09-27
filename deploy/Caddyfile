@@ -33,7 +33,7 @@
 		}
 	}
 
-	# SPA: cualquier otra ruta sirve index.html.
+	# SPA: la portada es index.html (prerenderizada); cualquier otra ruta sirve 200.html.
 	handle {
 		root * /srv
 		@immutable path /_app/immutable/*
@@ -41,7 +41,7 @@
 		# El resto (index.html, manifest…) se revalida siempre para ver las versiones nuevas.
 		@mutable not path /_app/immutable/*
 		header @mutable Cache-Control "no-cache"
-		try_files {path} /index.html
+		try_files {path} /200.html
 		file_server {
 			precompressed br gzip
 		}

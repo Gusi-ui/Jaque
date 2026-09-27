@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import {
     PRESETS,
@@ -15,8 +16,31 @@
   import { playerId } from '$lib/player';
   import { newBot, saveBot } from '$lib/bot';
   import { BOT_LEVELS, type BotLevel } from '@jaque/engine/bot';
+  import { SITE } from '$lib/site';
 
-  const player = playerId();
+  // La portada se prerenderiza: el id del jugador solo existe en el navegador.
+  const player = browser ? playerId() : '';
+
+  /** Datos estructurados para Google (schema.org). */
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      { '@type': 'WebSite', name: SITE.name, url: `${SITE.url}/`, inLanguage: 'es' },
+      {
+        '@type': 'WebApplication',
+        name: SITE.name,
+        url: `${SITE.url}/`,
+        description: SITE.description,
+        applicationCategory: 'GameApplication',
+        genre: 'Ajedrez',
+        operatingSystem: 'Web',
+        browserRequirements: 'Requiere JavaScript',
+        inLanguage: 'es',
+        isAccessibleForFree: true,
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' }
+      }
+    ]
+  });
 
   let stats = $state<{ players: number; games: number; seeks: Record<string, number> } | null>(null);
   let seeking = $state<string | null>(null);
@@ -96,9 +120,16 @@
   const minuteLabel = (m: number) => (m === 0.5 ? '½' : String(m));
 </script>
 
-<svelte:head><title>jaque · ajedrez online</title></svelte:head>
+<svelte:head>
+  <title>{SITE.title}</title>
+  <meta name="description" content={SITE.description} />
+  <link rel="canonical" href="{SITE.url}/" />
+  <meta property="og:url" content="{SITE.url}/" />
+  {@html `<script type="application/ld+json">${jsonLd}</script>`}
+</svelte:head>
 
 <section class="lobby">
+  <h1 class="title">Ajedrez online, gratis y sin registro</h1>
   <p class="lead">Elige un ritmo y te emparejamos con alguien.</p>
 
   <div class="grid" role="group" aria-label="Ritmos de juego">
@@ -146,6 +177,28 @@
       {stats.games} {stats.games === 1 ? 'partida en juego' : 'partidas en juego'}
     {/if}
   </p>
+</section>
+
+<section class="about" aria-labelledby="about-title">
+  <h2 id="about-title">Juega al ajedrez en segundos</h2>
+  <ul>
+    <li>
+      <strong>Partidas rápidas.</strong> Elige un ritmo, de bullet 1+0 a rápidas 15+10, y te
+      emparejamos con otra persona.
+    </li>
+    <li>
+      <strong>Reta a un amigo.</strong> Crea una partida con el ritmo y el color que quieras y
+      comparte el enlace.
+    </li>
+    <li>
+      <strong>Contra la máquina.</strong> Tres niveles, de fácil a difícil, para practicar cuando
+      quieras.
+    </li>
+    <li>
+      <strong>Sin registro ni anuncios.</strong> Funciona en el móvil y en el ordenador, y se puede
+      instalar como aplicación.
+    </li>
+  </ul>
 </section>
 
 <dialog bind:this={dialog} class="friend-dialog" onclick={(e) => e.target === dialog && dialog.close()}>
@@ -227,6 +280,13 @@
     padding: 6vh var(--gutter) 48px;
     display: grid;
     gap: 16px;
+  }
+  .title {
+    margin: 0;
+    font-size: clamp(1.5rem, 5vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
   }
   .lead {
     margin: 0 0 4px;
@@ -321,6 +381,30 @@
     font-size: 0.92rem;
     text-align: center;
     min-height: 1.4em;
+  }
+
+  .about {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 0 var(--gutter) 56px;
+    color: var(--muted);
+  }
+  .about h2 {
+    margin: 0 0 10px;
+    font-size: 1.1rem;
+    color: var(--text);
+  }
+  .about ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+  .about strong {
+    color: var(--text);
   }
 
   /* ─── Diálogo ───────────────────────────────────────────── */
