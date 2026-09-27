@@ -29,6 +29,10 @@
     { "pattern": "damejaque.online", "custom_domain": true },
     { "pattern": "www.damejaque.online", "custom_domain": true }
   ],
+  // Con routes, wrangler apaga workers.dev si no se indica: lo necesitan las URL de
+  // las Previews, y en producción redirige al dominio (src/site.ts).
+  "workers_dev": true,
+  "preview_urls": true,
 
   "durable_objects": {
     "bindings": [
