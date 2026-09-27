@@ -1,8 +1,8 @@
-# jaque · DameMate
+# jaque · DameJaque
 
 Ajedrez online minimalista y rápido, al estilo de lichess. Sin registro: eliges un ritmo y juegas.
 
-En producción se publica como **DameMate** en **https://damemate.app**. Internamente, el código se sigue llamando `jaque`.
+En producción se publica como **DameJaque** en **https://damejaque.online**. Internamente, el código se sigue llamando `jaque`.
 
 - Emparejamiento rápido por ritmo (1+0 … 15+10)
 - Partidas con amigos mediante enlace, con ritmo y color a elegir
@@ -19,7 +19,7 @@ En producción se publica como **DameMate** en **https://damemate.app**. Interna
 | Frontend | SvelteKit 2 + Svelte 5 (SPA estática), [chessground](https://github.com/lichess-org/chessground), chess.js |
 | Servidor | Node 22 + [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js), chess.js |
 | Proxy / HTTPS | Caddy 2 |
-| Despliegue | Cloudflare Workers + Durable Objects + D1 (producción, damemate.app) o Docker Compose en un VPS |
+| Despliegue | Cloudflare Workers + Durable Objects + D1 (producción, damejaque.online) o Docker Compose en un VPS |
 
 Hay dos formas de desplegarlo: en un VPS con Docker (abajo) o [100 % en Cloudflare](#despliegue-en-cloudflare), sin servidor propio.
 
@@ -173,7 +173,7 @@ pnpm --filter @jaque/worker run test:e2e   # pruebas del servidor Node contra wr
 
 | Rama | Dónde se publica | Durable Objects | D1 | Comando |
 |---|---|---|---|---|
-| `main` | Producción, `https://damemate.app` | Los de producción | `jaque` | `pnpm run deploy` |
+| `main` | Producción, `https://damejaque.online` | Los de producción | `jaque` | `pnpm run deploy` |
 | `develop` (y otras) | Preview con su propia URL | Aislados por Preview | `jaque-develop` | `pnpm run preview` |
 
 Ambos comandos (en `apps/worker`) compilan la web, aplican las migraciones de D1 que falten y publican. La cuenta es *Gusideveloper* (`account_id` en `wrangler.jsonc`); las bases `jaque` y `jaque-develop` ya existen.
@@ -194,9 +194,9 @@ Cloudflare compila y publica al hacer push: `main` → producción, `develop` �
 
 ### Dominio y posicionamiento
 
-- `damemate.app` y `www.damemate.app` son *Custom Domains* del Worker. El certificado y el DNS los gestiona Cloudflare.
+- `damejaque.online` y `www.damejaque.online` son *Custom Domains* del Worker, declarados en `routes` de `wrangler.jsonc`: se enlazan al publicar. El certificado y el DNS los gestiona Cloudflare.
 - El Worker se ejecuta antes que los assets (`run_worker_first: true`, ver `src/site.ts`):
-  - En producción, `www.damemate.app` y `*.workers.dev` redirigen con un 301 a `https://damemate.app`, para que Google indexe una sola URL. `/api` y `/ws` no se redirigen.
+  - En producción, `www.damejaque.online` y `*.workers.dev` redirigen con un 301 a `https://damejaque.online`, para que Google indexe una sola URL. `/api` y `/ws` no se redirigen.
   - Las Previews responden con `X-Robots-Tag: noindex` y un `robots.txt` que lo prohíbe todo.
   - Las rutas desconocidas devuelven 404; las de partida, 200 con `noindex`.
 - La portada se prerenderiza con su contenido, `<link rel="canonical">`, datos estructurados (`WebSite` y `WebApplication`) y etiquetas Open Graph con `og.png`.
@@ -213,10 +213,10 @@ Cloudflare compila y publica al hacer push: `main` → producción, `develop` �
 
 **Google Search Console**:
 
-1. Entra en https://search.google.com/search-console y añade una propiedad de tipo **Dominio**: `damemate.app`.
+1. Entra en https://search.google.com/search-console y añade una propiedad de tipo **Dominio**: `damejaque.online`.
 2. Google te da un registro TXT. Con el dominio en Cloudflare, acepta la verificación automática, o añade el TXT en *DNS → Records*.
-3. En *Sitemaps*, envía `https://damemate.app/sitemap.xml`.
-4. En *Inspección de URLs*, inspecciona `https://damemate.app/` y pulsa *Solicitar indexación*.
+3. En *Sitemaps*, envía `https://damejaque.online/sitemap.xml`.
+4. En *Inspección de URLs*, inspecciona `https://damejaque.online/` y pulsa *Solicitar indexación*.
 
 ### Despliegue manual
 

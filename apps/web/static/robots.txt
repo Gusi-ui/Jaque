@@ -4,4 +4,4 @@ Allow: /
 Disallow: /api/
 Disallow: /ws/
 
-Sitemap: https://damemate.app/sitemap.xml
+Sitemap: https://damejaque.online/sitemap.xml
