@@ -19,7 +19,7 @@ En producción se publica como **DameMate** en **https://damemate.app**. Interna
 | Frontend | SvelteKit 2 + Svelte 5 (SPA estática), [chessground](https://github.com/lichess-org/chessground), chess.js |
 | Servidor | Node 22 + [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js), chess.js |
 | Proxy / HTTPS | Caddy 2 |
-| Despliegue | Docker Compose en un VPS ARM64 (Oracle Cloud Always Free) con Cloudflare como proxy |
+| Despliegue | Cloudflare Workers + Durable Objects + D1 (producción, damemate.app) o Docker Compose en un VPS |
 
 Hay dos formas de desplegarlo: en un VPS con Docker (abajo) o [100 % en Cloudflare](#despliegue-en-cloudflare), sin servidor propio.
 
@@ -173,7 +173,7 @@ pnpm --filter @jaque/worker run test:e2e   # pruebas del servidor Node contra wr
 
 | Rama | Dónde se publica | Durable Objects | D1 | Comando |
 |---|---|---|---|---|
-| `main` | Producción, `jaque.<subdominio>.workers.dev` y dominio propio | Los de producción | `jaque` | `pnpm run deploy` |
+| `main` | Producción, `https://damemate.app` | Los de producción | `jaque` | `pnpm run deploy` |
 | `develop` (y otras) | Preview con su propia URL | Aislados por Preview | `jaque-develop` | `pnpm run preview` |
 
 Ambos comandos (en `apps/worker`) compilan la web, aplican las migraciones de D1 que falten y publican. La cuenta es *Gusideveloper* (`account_id` en `wrangler.jsonc`); las bases `jaque` y `jaque-develop` ya existen.
@@ -201,6 +201,15 @@ Cloudflare compila y publica al hacer push: `main` → producción, `develop` �
   - Las rutas desconocidas devuelven 404; las de partida, 200 con `noindex`.
 - La portada se prerenderiza con su contenido, `<link rel="canonical">`, datos estructurados (`WebSite` y `WebApplication`) y etiquetas Open Graph con `og.png`.
 - `robots.txt` y `sitemap.xml` están en `apps/web/static`. El sitemap solo incluye la portada, porque las partidas son efímeras.
+
+**Rendimiento**:
+
+- La portada pesa unos 85 KB comprimida, fuente incluida. No hace peticiones a terceros.
+- La fuente (Schibsted Grotesk, variable, subconjunto latino) se sirve desde el propio dominio, precargada.
+- El motor de la máquina (chessops) solo se descarga en las partidas contra ella.
+- `apps/web/static/_headers` define las cabeceras:
+  - `immutable` durante un año para `/_app/immutable/*` y `/fonts/*`
+  - HSTS, `nosniff` y `Referrer-Policy` en todas las respuestas
 
 **Google Search Console**:
 
@@ -230,12 +239,11 @@ pnpm exec wrangler d1 execute jaque --remote --command "SELECT id, status, winne
 
 En el orden que propondría:
 
-1. **Guardar partidas en PostgreSQL** al terminar (PGN, jugadores, resultado) y añadir una página de historial. Añadir un servicio `postgres` a `docker-compose.yml`.
-2. **Persistir partidas en curso** (en Redis o en la misma base de datos) para sobrevivir a reinicios y despliegues.
-3. **Cuentas y rating Glicko-2**, como lichess. Las partidas anónimas pueden seguir siendo el modo por defecto.
-4. **Análisis con Stockfish (WASM)** en el navegador al terminar la partida, sin coste de servidor.
-5. **Compensación de lag**: descontar del reloj parte de la latencia medida de cada jugador.
-6. Detección de desconexión prolongada con opción de reclamar la victoria.
+1. **Página de historial**: las partidas terminadas ya se guardan en D1, en Cloudflare. En el VPS habría que añadir PostgreSQL.
+2. **Cuentas y rating Glicko-2**, como lichess. Las partidas anónimas pueden seguir siendo el modo por defecto.
+3. **Análisis con Stockfish (WASM)** en el navegador al terminar la partida, sin coste de servidor.
+4. **Compensación de lag**: descontar del reloj parte de la latencia medida de cada jugador.
+5. Detección de desconexión prolongada con opción de reclamar la victoria.
 
 ## Licencia
 

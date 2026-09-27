@@ -20,9 +20,9 @@ interface Attachment {
 }
 
 /** Partidas terminadas: se borran 2 h después si no queda nadie conectado. */
-export const KEEP_FINISHED_MS = 2 * 60 * 60_000;
+const KEEP_FINISHED_MS = 2 * 60 * 60_000;
 /** Desafíos que nadie acepta: se borran tras 3 h sin actividad. */
-export const KEEP_WAITING_MS = 3 * 60 * 60_000;
+const KEEP_WAITING_MS = 3 * 60 * 60_000;
 
 const GAME_KEY = 'game';
 /** true cuando la partida terminada ya está en D1. */
