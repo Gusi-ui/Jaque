@@ -4,6 +4,7 @@ Ajedrez online minimalista y rápido, al estilo de lichess. Sin registro: eliges
 
 - Emparejamiento rápido por ritmo (1+0 … 15+10)
 - Partidas con amigos mediante enlace, con ritmo y color a elegir
+- Partidas contra la máquina (3 niveles). El bot corre en el navegador y se conecta como un jugador más, así que usa el mismo flujo que una partida real
 - Relojes controlados por el servidor, con incremento; arrancan tras la primera jugada de cada bando
 - Premoves, coronación, ofertas de tablas, abandono, anulación y revancha
 - Navegación por las jugadas (flechas del teclado) y giro del tablero (tecla F)
@@ -27,6 +28,7 @@ En el VPS, las partidas viven en memoria del servidor: es muy rápido y suficien
 ```
 packages/shared/     Tipos, controles de tiempo y mensajes compartidos por cliente y servidor
 packages/engine/     Lógica pura de una partida: jugadas, relojes, final, serialización (sin temporizadores)
+  src/bot.ts         La máquina: búsqueda alfa-beta (chessops) y su política (tablas, revancha, abandono)
 apps/server/         Servidor de partidas (HTTP + WebSocket)
   src/game.ts        El motor con reloj de pared, un setTimeout por partida y presencia
   src/store.ts       Partidas en memoria, revanchas y limpieza

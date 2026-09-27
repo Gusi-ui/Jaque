@@ -6,14 +6,18 @@
   "description": "Lógica pura de una partida: sin temporizadores ni dependencias de Node",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./bot": "./src/bot.ts"
+  },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@jaque/shared": "workspace:*",
-    "chess.js": "^1.4.0"
+    "chess.js": "^1.4.0",
+    "chessops": "^0.15.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
