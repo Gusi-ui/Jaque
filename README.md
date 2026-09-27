@@ -1,6 +1,8 @@
-# jaque
+# jaque · DameMate
 
 Ajedrez online minimalista y rápido, al estilo de lichess. Sin registro: eliges un ritmo y juegas.
+
+En producción se publica como **DameMate** en **https://damemate.app**. Internamente, el código se sigue llamando `jaque`.
 
 - Emparejamiento rápido por ritmo (1+0 … 15+10)
 - Partidas con amigos mediante enlace, con ritmo y color a elegir
@@ -189,6 +191,23 @@ Cloudflare compila y publica al hacer push: `main` → producción, `develop` �
    - **Preview command** (ramas que no son de producción): `pnpm run preview`
 3. En *Settings → Build*: **Branch control** → rama de producción `main`, con las builds de Preview activadas. En **Build watch paths**, incluye `apps/**` y `packages/**`.
 4. **Dominio propio**: *Settings → Domains & Routes → Add → Custom domain* (p. ej. `ajedrez.tudominio.com`). El dominio tiene que estar en la cuenta; el DNS y el certificado se crean solos.
+
+### Dominio y posicionamiento
+
+- `damemate.app` y `www.damemate.app` son *Custom Domains* del Worker. El certificado y el DNS los gestiona Cloudflare.
+- El Worker se ejecuta antes que los assets (`run_worker_first: true`, ver `src/site.ts`):
+  - En producción, `www.damemate.app` y `*.workers.dev` redirigen con un 301 a `https://damemate.app`, para que Google indexe una sola URL. `/api` y `/ws` no se redirigen.
+  - Las Previews responden con `X-Robots-Tag: noindex` y un `robots.txt` que lo prohíbe todo.
+  - Las rutas desconocidas devuelven 404; las de partida, 200 con `noindex`.
+- La portada se prerenderiza con su contenido, `<link rel="canonical">`, datos estructurados (`WebSite` y `WebApplication`) y etiquetas Open Graph con `og.png`.
+- `robots.txt` y `sitemap.xml` están en `apps/web/static`. El sitemap solo incluye la portada, porque las partidas son efímeras.
+
+**Google Search Console**:
+
+1. Entra en https://search.google.com/search-console y añade una propiedad de tipo **Dominio**: `damemate.app`.
+2. Google te da un registro TXT. Con el dominio en Cloudflare, acepta la verificación automática, o añade el TXT en *DNS → Records*.
+3. En *Sitemaps*, envía `https://damemate.app/sitemap.xml`.
+4. En *Inspección de URLs*, inspecciona `https://damemate.app/` y pulsa *Solicitar indexación*.
 
 ### Despliegue manual
 

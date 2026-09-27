@@ -7,13 +7,20 @@
   "compatibility_date": "2026-09-20",
   "observability": { "enabled": true },
 
-  // Frontend estático (SvelteKit). /api y /ws van al Worker; el resto, a los assets,
-  // con index.html para cualquier ruta desconocida (/:id de las partidas).
+  // Frontend estático (SvelteKit). El Worker va primero en todas las rutas: atiende
+  // /api y /ws, fija el dominio canónico y sirve los assets con el fallback de la
+  // SPA (200.html), devolviendo 404 en las rutas que no son partidas (src/site.ts).
   "assets": {
     "directory": "../web/build",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/ws/*"]
+    "not_found_handling": "none",
+    "run_worker_first": true
+  },
+
+  // Producción: damemate.app es el dominio canónico (www y workers.dev redirigen).
+  "vars": {
+    "ENVIRONMENT": "production",
+    "CANONICAL_HOST": "damemate.app"
   },
 
   "durable_objects": {
@@ -48,6 +55,11 @@
   // de desarrollo para no tocar los de producción.
   // Si cambias la D1 de aquí, cambia también wrangler.preview-migrations.jsonc.
   "previews": {
+    // Las Previews no se indexan ni redirigen al dominio.
+    "vars": {
+      "ENVIRONMENT": "preview",
+      "CANONICAL_HOST": ""
+    },
     "durable_objects": {
       "bindings": [
         { "name": "GAME_ROOM", "class_name": "GameRoom" },

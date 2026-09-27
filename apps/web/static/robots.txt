@@ -1,0 +1,7 @@
+# Producción. En las Previews, el Worker responde con Disallow: /
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /ws/
+
+Sitemap: https://damemate.app/sitemap.xml

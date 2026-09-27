@@ -6,18 +6,22 @@ import {
   type CreateGameBody
 } from '@jaque/shared';
 import { isWebSocketUpgrade, json, randomId } from './util';
+import { canonicalRedirect, serveSite } from './site';
 
 export { GameRoom } from './game-room';
 export { Lobby } from './lobby';
 
 /**
- * Mismo protocolo HTTP y WebSocket que apps/server. Solo llegan aquí /api/* y
- * /ws/* (assets.run_worker_first); el resto lo sirven los assets estáticos.
+ * Mismo protocolo HTTP y WebSocket que apps/server en /api/* y /ws/*; el resto
+ * lo sirve serveSite (dominio canónico, indexación y assets estáticos).
  * Ids y jugadores se validan antes de tocar ningún Durable Object.
  */
 export default {
   async fetch(request, env): Promise<Response> {
-    const { pathname, searchParams } = new URL(request.url);
+    const url = new URL(request.url);
+    const redirect = canonicalRedirect(url, env);
+    if (redirect) return redirect;
+    const { pathname, searchParams } = url;
     const player = searchParams.get('player') ?? '';
 
     if (pathname === '/api/health') return json({ ok: true });
@@ -52,7 +56,7 @@ export default {
     if (pathname.startsWith('/api/') || pathname.startsWith('/ws/')) {
       return json({ error: 'No encontrado' }, 404);
     }
-    return env.ASSETS.fetch(request);
+    return serveSite(request, env);
   }
 } satisfies ExportedHandler<Env>;
 

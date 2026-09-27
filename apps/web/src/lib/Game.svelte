@@ -22,6 +22,7 @@
   import { colorName, formatClock, resultText, scoreText } from './format';
   import { BOT_LEVELS } from '@jaque/engine/bot';
   import { botFor, saveBot, startBot } from './bot';
+  import { pageTitle } from './site';
 
   let { id }: { id: string } = $props();
 
@@ -299,9 +300,11 @@
 <svelte:head>
   <title>
     {game
-      ? `${tcLabel(game.tc)} ${SPEED_LABEL[speedOf(game.tc)]}${game.status === 'started' ? (game.turn === you ? ' · Tu turno' : '') : ''} · jaque`
-      : 'Partida · jaque'}
+      ? pageTitle(`${tcLabel(game.tc)} ${SPEED_LABEL[speedOf(game.tc)]}${game.status === 'started' ? (game.turn === you ? ' · Tu turno' : '') : ''}`)
+      : pageTitle('Partida')}
   </title>
+  <!-- Las partidas son efímeras: no deben aparecer en los buscadores. -->
+  <meta name="robots" content="noindex" />
 </svelte:head>
 
 {#snippet playerBar(c: Color, pos: 'top' | 'bottom')}

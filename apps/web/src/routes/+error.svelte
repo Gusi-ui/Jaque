@@ -1,6 +1,12 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { pageTitle } from '$lib/site';
 </script>
+
+<svelte:head>
+  <title>{pageTitle(page.status === 404 ? 'Página no encontrada' : 'Error')}</title>
+  <meta name="robots" content="noindex" />
+</svelte:head>
 
 <section>
   <h1>{page.status === 404 ? 'Página no encontrada' : 'Algo ha fallado'}</h1>
