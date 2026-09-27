@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "pnpm --filter @jaque/server --filter @jaque/web --parallel dev",
     "build": "pnpm --filter @jaque/server build && pnpm --filter @jaque/web build",
-    "check": "pnpm --filter @jaque/web check && pnpm --filter @jaque/engine check && pnpm --filter @jaque/server check",
-    "test": "pnpm --filter @jaque/engine test && pnpm --filter @jaque/server test"
+    "check": "pnpm --filter @jaque/web check && pnpm --filter @jaque/engine check && pnpm --filter @jaque/server check && pnpm --filter @jaque/worker check",
+    "test": "pnpm --filter @jaque/engine test && pnpm --filter @jaque/server test && pnpm --filter @jaque/worker test"
   },
   "engines": {
     "node": ">=22"

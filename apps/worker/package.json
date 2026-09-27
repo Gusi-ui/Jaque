@@ -1,0 +1,28 @@
+{
+  "name": "@jaque/worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Versión de jaque 100 % en Cloudflare: Workers + Durable Objects + D1",
+  "scripts": {
+    "dev": "pnpm --filter @jaque/web build && pnpm db:migrate:local && wrangler dev",
+    "deploy": "pnpm --filter @jaque/web build && wrangler deploy",
+    "types": "wrangler types",
+    "check": "wrangler types && tsc --noEmit && tsc --noEmit -p test",
+    "test": "vitest run",
+    "test:e2e": "node test/e2e.mjs",
+    "db:migrate": "pnpm db:migrate:local && pnpm db:migrate:remote",
+    "db:migrate:local": "wrangler d1 migrations apply jaque --local",
+    "db:migrate:remote": "wrangler d1 migrations apply jaque --remote"
+  },
+  "dependencies": {
+    "@jaque/engine": "workspace:*",
+    "@jaque/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.2.8",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.141.0"
+  }
+}

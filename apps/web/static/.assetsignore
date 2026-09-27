@@ -1,0 +1,4 @@
+# Cloudflare Workers comprime los assets por su cuenta: no subir las copias .br/.gz
+# que genera adapter-static (precompress) para Caddy.
+*.br
+*.gz

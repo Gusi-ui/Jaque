@@ -13,6 +13,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/engine/package.json packages/engine/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+COPY apps/worker/package.json apps/worker/
 RUN pnpm install --frozen-lockfile --filter @jaque/server...
 
 COPY packages/shared packages/shared

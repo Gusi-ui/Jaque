@@ -3,5 +3,6 @@ packages:
   - apps/*
 allowBuilds:
   esbuild: true
+  workerd: true
 minimumReleaseAgeExclude:
   - ws@8.22.0
