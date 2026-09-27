@@ -15,9 +15,9 @@ import {
   type GameView
 } from '@jaque/shared';
 
-export type BotLevel = 1 | 2 | 3;
+import type { BotLevel } from './levels.js';
 
-export const BOT_LEVELS: Record<BotLevel, string> = { 1: 'Fácil', 2: 'Medio', 3: 'Difícil' };
+export { BOT_LEVELS, type BotLevel } from './levels.js';
 
 interface LevelConfig {
   /** Profundidad máxima (en medias jugadas). */

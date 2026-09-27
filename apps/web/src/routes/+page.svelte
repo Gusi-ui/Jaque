@@ -14,8 +14,8 @@
   } from '@jaque/shared';
   import { connect, type SocketStatus } from '$lib/socket';
   import { playerId } from '$lib/player';
-  import { newBot, saveBot } from '$lib/bot';
-  import { BOT_LEVELS, type BotLevel } from '@jaque/engine/bot';
+  import { newBot, saveBot } from '$lib/bot-config';
+  import { BOT_LEVELS, type BotLevel } from '@jaque/engine/levels';
   import { SITE } from '$lib/site';
 
   // La portada se prerenderiza: el id del jugador solo existe en el navegador.

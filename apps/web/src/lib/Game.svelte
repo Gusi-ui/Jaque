@@ -20,8 +20,8 @@
   import { playerId } from './player';
   import { sound } from './sound';
   import { colorName, formatClock, resultText, scoreText } from './format';
-  import { BOT_LEVELS } from '@jaque/engine/bot';
-  import { botFor, saveBot, startBot } from './bot';
+  import { BOT_LEVELS } from '@jaque/engine/levels';
+  import { botFor, saveBot } from './bot-config';
   import { pageTitle } from './site';
 
   let { id }: { id: string } = $props();
@@ -165,7 +165,7 @@
 
   onMount(() => {
     let cancelled = false;
-    let botHandle: ReturnType<typeof startBot> | undefined;
+    let botHandle: { stop(): void } | undefined;
     fetch(`/api/games/${id}`).then((r) => {
       if (cancelled) return;
       if (r.status === 404) {
@@ -176,7 +176,13 @@
         onMessage,
         onStatus: (s) => (conn = s)
       });
-      if (bot) botHandle = startBot(id, bot);
+      // El motor de la máquina solo se descarga en las partidas contra ella.
+      if (bot) {
+        const cfg = bot;
+        import('./bot').then(({ startBot }) => {
+          if (!cancelled) botHandle = startBot(id, cfg);
+        });
+      }
     });
 
     const interval = setInterval(() => {
