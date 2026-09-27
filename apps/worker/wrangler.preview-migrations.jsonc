@@ -1,0 +1,14 @@
+// Solo para aplicar las migraciones a la D1 de las Previews (rama develop):
+//   wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.jsonc
+// Debe apuntar a la misma base que previews.d1_databases en wrangler.jsonc.
+{
+  "account_id": "d1f835df40f3c1f57b847482a58ed772",
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "jaque-develop",
+      "database_id": "5465a498-c6c0-4f31-b171-b0f2f3565a09",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

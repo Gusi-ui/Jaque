@@ -6,14 +6,16 @@
   "description": "Versión de jaque 100 % en Cloudflare: Workers + Durable Objects + D1",
   "scripts": {
     "dev": "pnpm --filter @jaque/web build && pnpm db:migrate:local && wrangler dev",
-    "deploy": "pnpm --filter @jaque/web build && wrangler deploy",
+    "deploy": "pnpm --filter @jaque/web build && pnpm db:migrate:remote && wrangler deploy",
+    "preview": "pnpm --filter @jaque/web build && pnpm db:migrate:preview && wrangler preview",
     "types": "wrangler types",
     "check": "wrangler types && tsc --noEmit && tsc --noEmit -p test",
     "test": "vitest run",
     "test:e2e": "node test/e2e.mjs",
-    "db:migrate": "pnpm db:migrate:local && pnpm db:migrate:remote",
+    "db:migrate": "pnpm db:migrate:local && pnpm db:migrate:remote && pnpm db:migrate:preview",
     "db:migrate:local": "wrangler d1 migrations apply jaque --local",
-    "db:migrate:remote": "wrangler d1 migrations apply jaque --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply jaque --remote",
+    "db:migrate:preview": "wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.jsonc"
   },
   "dependencies": {
     "@jaque/engine": "workspace:*",
