@@ -24,3 +24,6 @@ export function resultText(status: GameStatus, winner: Color | null) {
   if (status === 'timeout' && !winner) return 'Tiempo agotado; el rival no puede dar mate: tablas';
   return winner ? `${base}. Ganan ${colorName(winner).toLowerCase()}` : base;
 }
+
+/** 1234 → «1.234» (Intl en español no agrupa los números de cuatro cifras). */
+export const thousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');

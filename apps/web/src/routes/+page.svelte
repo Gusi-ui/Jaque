@@ -4,19 +4,22 @@
   import { goto } from '$app/navigation';
   import {
     PRESETS,
+    presetById,
     SPEED_LABEL,
     speedOf,
     tcLabel,
     type ClientLobbyMsg,
     type Color,
     type CreateGameBody,
-    type ServerLobbyMsg
+    type ServerLobbyMsg,
+    type TimeControl
   } from '@jaque/shared';
   import { connect, type SocketStatus } from '$lib/socket';
   import { playerId } from '$lib/player';
-  import { newBot, saveBot } from '$lib/bot-config';
+  import { lastLevel, newBot, saveBot, saveLastLevel } from '$lib/bot-config';
   import { BOT_LEVELS, type BotLevel } from '@jaque/engine/levels';
   import { SITE } from '$lib/site';
+  import { thousands } from '$lib/format';
 
   // La portada se prerenderiza: el id del jugador solo existe en el navegador.
   const player = browser ? playerId() : '';
@@ -42,7 +45,7 @@
     ]
   });
 
-  let stats = $state<{ players: number; games: number; seeks: Record<string, number> } | null>(null);
+  let stats = $state<Extract<ServerLobbyMsg, { t: 'stats' }> | null>(null);
   let seeking = $state<string | null>(null);
   let conn = $state<SocketStatus>('connecting');
   let error = $state('');
@@ -57,7 +60,26 @@
   let color = $state<Color | 'random'>('random');
   /** El mismo diálogo sirve para jugar con un amigo o contra la máquina. */
   let mode = $state<'friend' | 'bot'>('friend');
-  let level = $state<BotLevel>(2);
+  let level = $state<BotLevel>(1);
+  /** Nivel de «Jugar ya» y de la oferta tras esperar: el último elegido, o fácil. */
+  let savedLevel = $state<BotLevel>(1);
+
+  /** «Jugar ya»: partida inmediata contra la máquina. */
+  const QUICK_TC: TimeControl = { initial: 300, increment: 3 };
+  /** Tras esta espera sin rival se ofrece jugar contra la máquina. */
+  const OFFER_BOT_MS = 12_000;
+  let offerBot = $state(false);
+
+  $effect(() => {
+    offerBot = false;
+    if (!seeking) return;
+    const t = setTimeout(() => (offerBot = true), OFFER_BOT_MS);
+    return () => clearTimeout(t);
+  });
+
+  /** Con poca gente conectada, el directo solo dice que está vacío: se muestra el historial. */
+  const LIVE_MIN_PLAYERS = 3;
+  const PLAYED_MIN = 50;
 
   function openDialog(m: 'friend' | 'bot') {
     mode = m;
@@ -68,6 +90,7 @@
   let socket: ReturnType<typeof connect<ServerLobbyMsg, ClientLobbyMsg>> | undefined;
 
   onMount(() => {
+    savedLevel = level = lastLevel();
     socket = connect<ServerLobbyMsg, ClientLobbyMsg>(`/ws/lobby?player=${player}`, {
       onMessage(msg) {
         if (msg.t === 'stats') stats = msg;
@@ -95,12 +118,12 @@
     else seeking = id;
   }
 
-  async function createFriendGame(e: SubmitEvent) {
-    e.preventDefault();
+  /** Crea la partida (con amigo o contra la máquina, si hay nivel) y entra en ella. */
+  async function createGame(tc: TimeControl, color: Color | 'random', botLevel?: BotLevel) {
     creating = true;
     error = '';
     try {
-      const body: CreateGameBody = { player, tc: friendTc, color };
+      const body: CreateGameBody = { player, tc, color };
       const res = await fetch('/api/games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,13 +131,26 @@
       });
       if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
       const { id } = await res.json();
-      if (mode === 'bot') saveBot(id, newBot(level));
+      if (botLevel) saveBot(id, newBot(botLevel));
       if (seeking) socket?.send({ t: 'cancel' });
       goto(`/${id}`);
     } catch (err) {
       error = `No se pudo crear la partida: ${(err as Error).message}`;
       creating = false;
     }
+  }
+
+  function submitDialog(e: SubmitEvent) {
+    e.preventDefault();
+    if (mode === 'bot') {
+      saveLastLevel(level);
+      savedLevel = level;
+    }
+    createGame(friendTc, color, mode === 'bot' ? level : undefined);
+  }
+
+  function playBotNow(tc: TimeControl) {
+    createGame({ initial: tc.initial, increment: tc.increment }, 'random', savedLevel);
   }
 
   const minuteLabel = (m: number) => (m === 0.5 ? '½' : String(m));
@@ -130,7 +166,12 @@
 
 <section class="lobby">
   <h1 class="title">Ajedrez online, gratis y sin registro</h1>
-  <p class="lead">Elige un ritmo y te emparejamos con alguien.</p>
+  <p class="lead">Juega ya contra la máquina o elige un ritmo y te emparejamos con alguien.</p>
+
+  <button class="btn primary quick" disabled={creating} onclick={() => playBotNow(QUICK_TC)}>
+    <span>Jugar ya contra la máquina</span>
+    <small>{tcLabel(QUICK_TC)} · nivel {BOT_LEVELS[savedLevel].toLowerCase()}</small>
+  </button>
 
   <div class="grid" role="group" aria-label="Ritmos de juego">
     {#each PRESETS as p, i (p.id)}
@@ -157,14 +198,23 @@
   </div>
 
   {#if seeking}
-    <p class="seeking" role="status">
-      Buscando rival para {seeking}. Toca la casilla de nuevo para cancelar.
-    </p>
+    {@const tc = presetById(seeking)}
+    <div class="seeking" role="status">
+      {#if offerBot && tc}
+        <p>No hay nadie libre ahora mismo.</p>
+        <button class="btn primary" disabled={creating} onclick={() => playBotNow(tc)}>
+          Jugar {seeking} contra la máquina
+        </button>
+        <p class="wait">Si prefieres esperar, seguimos buscando rival.</p>
+      {:else}
+        <p>Buscando rival para {seeking}. Toca la casilla de nuevo para cancelar.</p>
+      {/if}
+    </div>
   {/if}
 
   <div class="modes">
     <button class="btn friend" onclick={() => openDialog('friend')}>Jugar con un amigo</button>
-    <button class="btn friend" onclick={() => openDialog('bot')}>Jugar contra la máquina</button>
+    <button class="btn friend" onclick={() => openDialog('bot')}>Configurar partida contra la máquina</button>
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -172,9 +222,11 @@
   <p class="stats" aria-live="polite">
     {#if conn !== 'open'}
       Conectando…
-    {:else if stats}
-      {stats.players} {stats.players === 1 ? 'jugador conectado' : 'jugadores conectados'},
+    {:else if stats && stats.players >= LIVE_MIN_PLAYERS}
+      {stats.players} jugadores conectados,
       {stats.games} {stats.games === 1 ? 'partida en juego' : 'partidas en juego'}
+    {:else if stats && stats.played >= PLAYED_MIN}
+      {thousands(stats.played)} partidas jugadas en DameJaque
     {/if}
   </p>
 </section>
@@ -201,8 +253,24 @@
   </ul>
 </section>
 
+<footer class="foot">
+  <p class="foot-brand">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <rect x="0" y="0" width="8" height="8" fill="var(--brass)" />
+      <rect x="8" y="8" width="8" height="8" fill="var(--brass)" />
+      <rect x="8" y="0" width="8" height="8" fill="var(--line)" />
+      <rect x="0" y="8" width="8" height="8" fill="var(--line)" />
+    </svg>
+    {SITE.name}
+  </p>
+  <p>Ajedrez online gratis, sin registro y sin anuncios.</p>
+  <p>
+    <a href="https://github.com/Gusi-ui/Jaque" rel="noopener">Código abierto</a> con licencia GPL-3.0
+  </p>
+</footer>
+
 <dialog bind:this={dialog} class="friend-dialog" onclick={(e) => e.target === dialog && dialog.close()}>
-  <form onsubmit={createFriendGame}>
+  <form onsubmit={submitDialog}>
     {#if mode === 'bot'}
       <h2>Jugar contra la máquina</h2>
       <p class="hint">Una partida normal, con reloj, contra el ordenador.</p>
@@ -355,10 +423,31 @@
     text-align: center;
   }
 
+  .quick {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    min-height: 60px;
+    font-size: 1.1rem;
+  }
+  .quick small {
+    font-size: 0.85rem;
+    font-weight: 500;
+    opacity: 0.85;
+  }
   .seeking {
-    margin: 0;
+    display: grid;
+    gap: 8px;
     color: var(--brass);
     font-weight: 600;
+  }
+  .seeking p {
+    margin: 0;
+  }
+  .seeking .wait {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.92rem;
   }
   .modes {
     display: grid;
@@ -405,6 +494,43 @@
   }
   .about strong {
     color: var(--text);
+  }
+
+  .foot {
+    /* Mismo ancho que el texto de arriba, para que la línea no sobresalga. */
+    margin-inline: max(var(--gutter), calc((100% - 520px) / 2 + var(--gutter)));
+    padding: 24px 0 calc(32px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+  .foot p {
+    margin: 0;
+  }
+  .foot .foot-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+  .foot-brand svg {
+    border-radius: 3px;
+  }
+  .foot a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .foot a:hover {
+    color: var(--brass);
   }
 
   /* ─── Diálogo ───────────────────────────────────────────── */

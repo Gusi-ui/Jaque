@@ -98,6 +98,29 @@ test('emparejamiento rápido en el lobby', async () => {
   b.ws.close();
 });
 
+test('el lobby cuenta las partidas jugadas', async () => {
+  const lobby = connect(`/ws/lobby?player=${P1}`);
+  const { played } = await lobby.next((m) => m.t === 'stats');
+  assert.equal(typeof played, 'number');
+  const r = await fetch(`${BASE}/api/games`, {
+    method: 'POST',
+    body: JSON.stringify({ player: P1, tc: { initial: 300, increment: 0 }, color: 'white' })
+  });
+  const { id } = await r.json();
+  const a = connect(`/ws/game/${id}?player=${P1}`);
+  await a.next((m) => m.t === 'hello');
+  const b = connect(`/ws/game/${id}?player=${P2}`);
+  await b.opened;
+  b.send({ t: 'join' });
+  await a.next((m) => m.t === 'state' && m.game.status === 'started');
+  for (const [i, uci] of ['f2f3', 'e7e5', 'g2g4', 'd8h4'].entries()) {
+    (i % 2 ? b : a).send({ t: 'move', uci, ply: i });
+    await a.next((m) => m.t === 'state' && m.game.moves.length === i + 1);
+  }
+  await lobby.next((m) => m.t === 'stats' && m.played === played + 1);
+  for (const c of [lobby, a, b]) c.ws.close();
+});
+
 test('keepalive: responde pong al ping, también a los espectadores', async () => {
   const r = await fetch(`${BASE}/api/games`, {
     method: 'POST',

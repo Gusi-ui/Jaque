@@ -1,6 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game, FIRST_MOVE_MS } from '../src/game.js';
+import { GameStore } from '../src/store.js';
 
 const blitz = { initial: 180, increment: 2 };
 
@@ -105,4 +106,22 @@ test('la oferta de tablas caduca si el rival mueve', () => {
   g.move('black', 'b8c6', 3);
   assert.equal(g.drawOffer, null);
   g.dispose();
+});
+
+test('el almacén cuenta las partidas terminadas, no las anuladas', () => {
+  const store = new GameStore();
+  let finished = 0;
+  store.onFinished = () => finished++;
+  const g = store.pair(blitz, 'white-player-00000', 'black-player-00000')!;
+  ['f2f3', 'e7e5', 'g2g4', 'd8h4'].forEach((m, i) => g.move(i % 2 ? 'black' : 'white', m, i));
+  assert.equal(g.status, 'mate');
+  assert.equal(store.played, 1);
+  assert.equal(finished, 1);
+  const a = store.pair(blitz, 'white-player-00000', 'black-player-00000')!;
+  a.abort('white');
+  assert.equal(a.status, 'aborted');
+  assert.equal(store.played, 1);
+  assert.equal(finished, 1);
+  g.dispose();
+  a.dispose();
 });
