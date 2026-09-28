@@ -64,8 +64,16 @@
   /** Nivel de «Jugar ya» y de la oferta tras esperar: el último elegido, o fácil. */
   let savedLevel = $state<BotLevel>(1);
 
-  /** «Jugar ya»: partida inmediata contra la máquina. */
-  const QUICK_TC: TimeControl = { initial: 300, increment: 3 };
+  /** El reto de la máquina: aparece solo, una vez por visita, si el visitante no hace nada. */
+  const CHALLENGE_TC: TimeControl = { initial: 300, increment: 3 };
+  const CHALLENGE_MS = 8_000;
+  const CHALLENGE_KEY = 'jaque:reto-visto';
+  let challenge = $state(false);
+
+  // Buscar rival manda sobre el reto.
+  $effect(() => {
+    if (seeking) challenge = false;
+  });
   /** Tras esta espera sin rival se ofrece jugar contra la máquina. */
   const OFFER_BOT_MS = 12_000;
   let offerBot = $state(false);
@@ -91,6 +99,7 @@
 
   onMount(() => {
     savedLevel = level = lastLevel();
+    const challengeTimer = setTimeout(showChallenge, CHALLENGE_MS);
     socket = connect<ServerLobbyMsg, ClientLobbyMsg>(`/ws/lobby?player=${player}`, {
       onMessage(msg) {
         if (msg.t === 'stats') stats = msg;
@@ -104,8 +113,22 @@
         if (s === 'open' && seeking) socket?.send({ t: 'seek', tc: seeking });
       }
     });
-    return () => socket?.close();
+    return () => {
+      clearTimeout(challengeTimer);
+      socket?.close();
+    };
   });
+
+  function showChallenge() {
+    if (seeking || creating || dialog?.open) return;
+    try {
+      if (sessionStorage.getItem(CHALLENGE_KEY)) return;
+      sessionStorage.setItem(CHALLENGE_KEY, '1');
+    } catch {
+      /* sin almacenamiento: se muestra igual */
+    }
+    challenge = true;
+  }
 
   function toggleSeek(id: string) {
     error = '';
@@ -166,12 +189,7 @@
 
 <section class="lobby">
   <h1 class="title">Ajedrez online, gratis y sin registro</h1>
-  <p class="lead">Juega ya contra la máquina o elige un ritmo y te emparejamos con alguien.</p>
-
-  <button class="btn primary quick" disabled={creating} onclick={() => playBotNow(QUICK_TC)}>
-    <span>Jugar ya contra la máquina</span>
-    <small>{tcLabel(QUICK_TC)} · nivel {BOT_LEVELS[savedLevel].toLowerCase()}</small>
-  </button>
+  <p class="lead">Elige un ritmo y te emparejamos con alguien.</p>
 
   <div class="grid" role="group" aria-label="Ritmos de juego">
     {#each PRESETS as p, i (p.id)}
@@ -214,7 +232,7 @@
 
   <div class="modes">
     <button class="btn friend" onclick={() => openDialog('friend')}>Jugar con un amigo</button>
-    <button class="btn friend" onclick={() => openDialog('bot')}>Configurar partida contra la máquina</button>
+    <button class="btn friend" onclick={() => openDialog('bot')}>Jugar contra la máquina</button>
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -252,6 +270,21 @@
     </li>
   </ul>
 </section>
+
+{#if challenge}
+  <aside class="challenge" aria-labelledby="challenge-title" aria-live="polite">
+    <p class="challenge-title" id="challenge-title"><span aria-hidden="true">♞&#xFE0E;</span> La máquina te reta</p>
+    <p class="challenge-text">
+      Una partida rápida {tcLabel(CHALLENGE_TC)}, nivel {BOT_LEVELS[savedLevel].toLowerCase()}. ¿Aceptas?
+    </p>
+    <div class="challenge-actions">
+      <button class="btn" onclick={() => (challenge = false)}>Ahora no</button>
+      <button class="btn primary" disabled={creating} onclick={() => playBotNow(CHALLENGE_TC)}>
+        Acepto el reto
+      </button>
+    </div>
+  </aside>
+{/if}
 
 <footer class="foot">
   <p class="foot-brand">
@@ -421,18 +454,6 @@
     text-align: center;
   }
 
-  .quick {
-    display: grid;
-    gap: 2px;
-    width: 100%;
-    min-height: 60px;
-    font-size: 1.1rem;
-  }
-  .quick small {
-    font-size: 0.85rem;
-    font-weight: 500;
-    opacity: 0.85;
-  }
   .seeking {
     display: grid;
     gap: 8px;
@@ -524,6 +545,64 @@
   }
   .heart {
     color: var(--danger);
+  }
+
+  /* ─── Reto de la máquina ─────────────────────────────────── */
+  .challenge {
+    position: fixed;
+    z-index: 10;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: grid;
+    gap: 6px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.55);
+    animation: rise 0.35s ease-out;
+  }
+  @media (min-width: 600px) {
+    .challenge {
+      left: auto;
+      right: 24px;
+      bottom: 24px;
+      width: 340px;
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .challenge {
+      animation: none;
+    }
+  }
+  .challenge p {
+    margin: 0;
+  }
+  .challenge-title {
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+  }
+  .challenge-title span {
+    font-size: 1.3em;
+    line-height: 1;
+    color: var(--brass);
+  }
+  .challenge-text {
+    color: var(--muted);
+  }
+  .challenge-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   /* ─── Diálogo ───────────────────────────────────────────── */

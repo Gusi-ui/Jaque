@@ -5,7 +5,7 @@ Ajedrez online minimalista y rápido, al estilo de lichess. Sin registro: eliges
 En producción se publica como **DameJaque** en **https://damejaque.online**. Internamente, el código se sigue llamando `jaque`.
 
 - Emparejamiento rápido por ritmo (1+0 … 15+10). Si nadie aparece en 12 s, se ofrece jugar ese ritmo contra la máquina sin dejar de buscar
-- «Jugar ya»: partida inmediata contra la máquina (5+3, último nivel elegido; fácil la primera vez)
+- Reto de la máquina: si el visitante no hace nada en la portada durante 8 s, se le propone una partida 5+3 contra la máquina (una vez por visita)
 - Partidas con amigos mediante enlace, con ritmo y color a elegir
 - Partidas contra la máquina (3 niveles). El bot corre en el navegador y se conecta como un jugador más, así que usa el mismo flujo que una partida real
 - Relojes controlados por el servidor, con incremento; arrancan tras la primera jugada de cada bando
