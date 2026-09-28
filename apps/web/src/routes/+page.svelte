@@ -253,6 +253,22 @@
   </ul>
 </section>
 
+<footer class="foot">
+  <p class="foot-brand">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <rect x="0" y="0" width="8" height="8" fill="var(--brass)" />
+      <rect x="8" y="8" width="8" height="8" fill="var(--brass)" />
+      <rect x="8" y="0" width="8" height="8" fill="var(--line)" />
+      <rect x="0" y="8" width="8" height="8" fill="var(--line)" />
+    </svg>
+    {SITE.name}
+  </p>
+  <p>Ajedrez online gratis, sin registro y sin anuncios.</p>
+  <p>
+    <a href="https://github.com/Gusi-ui/Jaque" rel="noopener">Código abierto</a> con licencia GPL-3.0
+  </p>
+</footer>
+
 <dialog bind:this={dialog} class="friend-dialog" onclick={(e) => e.target === dialog && dialog.close()}>
   <form onsubmit={submitDialog}>
     {#if mode === 'bot'}
@@ -478,6 +494,43 @@
   }
   .about strong {
     color: var(--text);
+  }
+
+  .foot {
+    /* Mismo ancho que el texto de arriba, para que la línea no sobresalga. */
+    margin-inline: max(var(--gutter), calc((100% - 520px) / 2 + var(--gutter)));
+    padding: 24px 0 calc(32px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+  .foot p {
+    margin: 0;
+  }
+  .foot .foot-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+  .foot-brand svg {
+    border-radius: 3px;
+  }
+  .foot a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .foot a:hover {
+    color: var(--brass);
   }
 
   /* ─── Diálogo ───────────────────────────────────────────── */
