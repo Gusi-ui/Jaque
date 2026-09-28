@@ -37,3 +37,24 @@ export function newBot(level: BotLevel): BotConfig {
   const rand = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
   return { player: `bot-${rand}`, level };
 }
+
+const LEVEL_KEY = 'jaque:bot-level';
+
+/** Último nivel elegido en el diálogo; fácil si no hay ninguno. */
+export function lastLevel(): BotLevel {
+  try {
+    const l = Number(localStorage.getItem(LEVEL_KEY));
+    if (l === 1 || l === 2 || l === 3) return l;
+  } catch {
+    /* almacenamiento bloqueado */
+  }
+  return 1;
+}
+
+export function saveLastLevel(level: BotLevel) {
+  try {
+    localStorage.setItem(LEVEL_KEY, String(level));
+  } catch {
+    /* sin almacenamiento: se usará el nivel fácil */
+  }
+}
