@@ -26,6 +26,9 @@ export class GameStore {
   private games = new Map<string, Game>();
   onChange: (game: Game) => void = () => {};
   onRedirect: (from: Game, to: Game) => void = () => {};
+  onFinished: (game: Game) => void = () => {};
+  /** Partidas terminadas (no anuladas) desde que arrancó el servidor. */
+  played = 0;
 
   get size() {
     return this.games.size;
@@ -47,7 +50,15 @@ export class GameStore {
     let id = randomId();
     while (this.games.has(id)) id = randomId();
     const game = new Game(id, tc);
-    game.onChange = () => this.onChange(game);
+    let counted = false;
+    game.onChange = () => {
+      if (!counted && isOver(game.status) && game.status !== 'aborted') {
+        counted = true;
+        this.played++;
+        this.onFinished(game);
+      }
+      this.onChange(game);
+    };
     this.games.set(id, game);
     return game;
   }

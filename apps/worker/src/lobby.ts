@@ -32,6 +32,18 @@ export class Lobby extends DurableObject<Env> {
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS playing (id TEXT PRIMARY KEY, started_at INTEGER NOT NULL)'
     );
+    ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS counters (k TEXT PRIMARY KEY, v INTEGER NOT NULL)');
+    // La primera vez, el contador de partidas jugadas parte del historial de D1.
+    // Si D1 falla, se reintenta al siguiente despertar; mientras, cuenta desde 0.
+    ctx.blockConcurrencyWhile(async () => {
+      if (ctx.storage.sql.exec("SELECT 1 FROM counters WHERE k = 'played'").toArray().length) return;
+      try {
+        const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM games').first<{ n: number }>();
+        ctx.storage.sql.exec("INSERT OR IGNORE INTO counters (k, v) VALUES ('played', ?)", row?.n ?? 0);
+      } catch (err) {
+        console.error('No se pudo contar el historial', err);
+      }
+    });
   }
 
   // ─── RPC (GameRoom) ────────────────────────────────────────────────
@@ -45,8 +57,14 @@ export class Lobby extends DurableObject<Env> {
     this.broadcastStats();
   }
 
-  gameEnded(id: string) {
+  /** `played` es false si la partida se anuló: no cuenta como jugada. */
+  gameEnded(id: string, played = false) {
     this.ctx.storage.sql.exec('DELETE FROM playing WHERE id = ?', id);
+    if (played) {
+      this.ctx.storage.sql.exec(
+        "INSERT INTO counters (k, v) VALUES ('played', 1) ON CONFLICT(k) DO UPDATE SET v = v + 1"
+      );
+    }
     this.broadcastStats();
   }
 
@@ -144,7 +162,9 @@ export class Lobby extends DurableObject<Env> {
     const sql = this.ctx.storage.sql;
     sql.exec('DELETE FROM playing WHERE started_at < ?', Date.now() - MAX_GAME_MS);
     const games = sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM playing').one().n;
-    return { t: 'stats', players: players.size, games, seeks };
+    const played =
+      sql.exec<{ v: number }>("SELECT v FROM counters WHERE k = 'played'").toArray()[0]?.v ?? 0;
+    return { t: 'stats', players: players.size, games, seeks, played };
   }
 
   /** Se llama solo cuando algo cambia: conexión, desconexión, búsqueda o partida. */

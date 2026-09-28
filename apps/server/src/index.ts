@@ -52,6 +52,7 @@ store.onRedirect = (from, to) => {
   const msg: ServerGameMsg = { t: 'redirect', id: to.id };
   app.publish(gameTopic(from.id), JSON.stringify(msg));
 };
+store.onFinished = () => app.publish(LOBBY, JSON.stringify(lobbyStats()));
 
 const send = (ws: Socket, msg: ServerGameMsg | ServerLobbyMsg) => {
   ws.send(JSON.stringify(msg));
@@ -100,7 +101,7 @@ function seek(ws: Socket, tcId: string) {
 function lobbyStats(): ServerLobbyMsg {
   const counts: Record<string, number> = {};
   for (const [id, q] of seeks) counts[id] = q.length;
-  return { t: 'stats', players: online.size, games: store.playing, seeks: counts };
+  return { t: 'stats', players: online.size, games: store.playing, seeks: counts, played: store.played };
 }
 
 // ─── Mensajes de partida ─────────────────────────────────────────────

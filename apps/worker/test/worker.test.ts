@@ -266,6 +266,22 @@ describe('lobby', () => {
     for (const c of [a, b, g]) c.ws.close();
   });
 
+  it('cuenta las partidas terminadas, no las anuladas', async () => {
+    const l = await connect(`/ws/lobby?player=lobby-cuatro-000000`);
+    const { played } = await l.next((m) => m.t === 'stats');
+    expect(typeof played).toBe('number');
+
+    const aborted = await startedGame();
+    aborted.a.send({ t: 'abort' });
+    await aborted.a.next((m) => m.t === 'state' && m.game.status === 'aborted');
+
+    // Si la anulada sumara, el stats tras el mate llevaría played + 2.
+    const { a, b } = await startedGame();
+    await play(a, b, ['f2f3', 'e7e5', 'g2g4', 'd8h4']);
+    await l.next((m) => m.t === 'stats' && m.played === played + 1);
+    for (const c of [l, a, b, aborted.a, aborted.b]) c.ws.close();
+  });
+
   it('no empareja a un jugador consigo mismo y permite cancelar', async () => {
     const a = await connect(`/ws/lobby?player=lobby-tres-0000000`);
     const { players } = await a.next((m) => m.t === 'stats');

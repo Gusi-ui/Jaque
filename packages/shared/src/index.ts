@@ -139,7 +139,7 @@ export type ServerGameMsg =
 export type ClientLobbyMsg = { t: 'seek'; tc: string } | { t: 'cancel' } | { t: 'ping' };
 
 export type ServerLobbyMsg =
-  | { t: 'stats'; players: number; games: number; seeks: Record<string, number> }
+  | { t: 'stats'; players: number; games: number; seeks: Record<string, number>; played: number }
   | { t: 'seeking'; tc: string }
   | { t: 'start'; id: string }
   | { t: 'error'; msg: string }

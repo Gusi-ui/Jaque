@@ -320,7 +320,9 @@
     <div class="who">
       <span class="piece-dot {c}" aria-hidden="true"></span>
       <span class="name">
-        {colorName(c)}{#if you === c}<span class="you">tú</span>{:else if botColor === c && bot}<span class="you bot">máquina · {BOT_LEVELS[bot.level].toLowerCase()}</span>{/if}
+        <span>{colorName(c)}{#if you === c}<span class="you">tú</span>{/if}</span>
+        <!-- En su propia línea, para que el reloj no la tape. -->
+        {#if botColor === c && bot}<span class="you bot">máquina · {BOT_LEVELS[bot.level].toLowerCase()}</span>{/if}
       </span>
       {#if game?.seats[c].taken}
         <span class="presence" class:on={game.seats[c].online} title={game.seats[c].online ? 'Conectado' : 'Desconectado'}>
@@ -547,7 +549,8 @@
 
   @media (min-width: 800px) {
     .game {
-      grid-template-columns: minmax(0, min(calc(100vh - 120px), 720px)) minmax(260px, 320px);
+      /* El tablero manda: todo el alto disponible y una columna lateral estrecha. */
+      grid-template-columns: minmax(0, min(calc(100vh - 96px), 840px)) minmax(220px, 260px);
       grid-template-rows: auto 1fr auto auto;
       grid-template-areas:
         'board top'
@@ -615,7 +618,16 @@
     font-size: 0.78rem;
     font-weight: 700;
   }
+  .name {
+    display: grid;
+    justify-items: start;
+    min-width: 0;
+  }
   .you.bot {
+    max-width: 100%;
+    margin: 2px 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     background: var(--surface-2);
     color: var(--muted);
@@ -667,17 +679,11 @@
 
   @media (min-width: 800px) {
     .player {
-      padding: 14px 16px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-m);
+      padding: 4px 0;
     }
     .clock {
-      font-size: 2.3rem;
-      padding: 10px 12px;
-    }
-    .running .clock {
-      background: var(--bg);
+      font-size: 1.9rem;
+      padding: 8px 12px;
     }
   }
 

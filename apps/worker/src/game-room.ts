@@ -229,7 +229,9 @@ export class GameRoom extends DurableObject<Env> {
     const lobby = () => this.env.LOBBY.getByName('lobby');
     try {
       if (prev !== 'started' && game.status === 'started') await lobby().gameStarted(game.id);
-      if (prev === 'started' && isOver(game.status)) await lobby().gameEnded(game.id);
+      if (prev === 'started' && isOver(game.status)) {
+        await lobby().gameEnded(game.id, game.status !== 'aborted');
+      }
     } catch (err) {
       console.error('No se pudo avisar al lobby', err);
     }

@@ -4,19 +4,22 @@
   import { goto } from '$app/navigation';
   import {
     PRESETS,
+    presetById,
     SPEED_LABEL,
     speedOf,
     tcLabel,
     type ClientLobbyMsg,
     type Color,
     type CreateGameBody,
-    type ServerLobbyMsg
+    type ServerLobbyMsg,
+    type TimeControl
   } from '@jaque/shared';
   import { connect, type SocketStatus } from '$lib/socket';
   import { playerId } from '$lib/player';
-  import { newBot, saveBot } from '$lib/bot-config';
+  import { lastLevel, newBot, saveBot, saveLastLevel } from '$lib/bot-config';
   import { BOT_LEVELS, type BotLevel } from '@jaque/engine/levels';
   import { SITE } from '$lib/site';
+  import { thousands } from '$lib/format';
 
   // La portada se prerenderiza: el id del jugador solo existe en el navegador.
   const player = browser ? playerId() : '';
@@ -42,7 +45,7 @@
     ]
   });
 
-  let stats = $state<{ players: number; games: number; seeks: Record<string, number> } | null>(null);
+  let stats = $state<Extract<ServerLobbyMsg, { t: 'stats' }> | null>(null);
   let seeking = $state<string | null>(null);
   let conn = $state<SocketStatus>('connecting');
   let error = $state('');
@@ -57,7 +60,34 @@
   let color = $state<Color | 'random'>('random');
   /** El mismo diálogo sirve para jugar con un amigo o contra la máquina. */
   let mode = $state<'friend' | 'bot'>('friend');
-  let level = $state<BotLevel>(2);
+  let level = $state<BotLevel>(1);
+  /** Nivel de «Jugar ya» y de la oferta tras esperar: el último elegido, o fácil. */
+  let savedLevel = $state<BotLevel>(1);
+
+  /** El reto de la máquina: aparece solo, una vez por visita, si el visitante no hace nada. */
+  const CHALLENGE_TC: TimeControl = { initial: 300, increment: 3 };
+  const CHALLENGE_MS = 8_000;
+  const CHALLENGE_KEY = 'jaque:reto-visto';
+  let challenge = $state(false);
+
+  // Buscar rival manda sobre el reto.
+  $effect(() => {
+    if (seeking) challenge = false;
+  });
+  /** Tras esta espera sin rival se ofrece jugar contra la máquina. */
+  const OFFER_BOT_MS = 12_000;
+  let offerBot = $state(false);
+
+  $effect(() => {
+    offerBot = false;
+    if (!seeking) return;
+    const t = setTimeout(() => (offerBot = true), OFFER_BOT_MS);
+    return () => clearTimeout(t);
+  });
+
+  /** Con poca gente conectada, el directo solo dice que está vacío: se muestra el historial. */
+  const LIVE_MIN_PLAYERS = 3;
+  const PLAYED_MIN = 50;
 
   function openDialog(m: 'friend' | 'bot') {
     mode = m;
@@ -68,6 +98,8 @@
   let socket: ReturnType<typeof connect<ServerLobbyMsg, ClientLobbyMsg>> | undefined;
 
   onMount(() => {
+    savedLevel = level = lastLevel();
+    const challengeTimer = setTimeout(showChallenge, CHALLENGE_MS);
     socket = connect<ServerLobbyMsg, ClientLobbyMsg>(`/ws/lobby?player=${player}`, {
       onMessage(msg) {
         if (msg.t === 'stats') stats = msg;
@@ -81,8 +113,22 @@
         if (s === 'open' && seeking) socket?.send({ t: 'seek', tc: seeking });
       }
     });
-    return () => socket?.close();
+    return () => {
+      clearTimeout(challengeTimer);
+      socket?.close();
+    };
   });
+
+  function showChallenge() {
+    if (seeking || creating || dialog?.open) return;
+    try {
+      if (sessionStorage.getItem(CHALLENGE_KEY)) return;
+      sessionStorage.setItem(CHALLENGE_KEY, '1');
+    } catch {
+      /* sin almacenamiento: se muestra igual */
+    }
+    challenge = true;
+  }
 
   function toggleSeek(id: string) {
     error = '';
@@ -95,12 +141,12 @@
     else seeking = id;
   }
 
-  async function createFriendGame(e: SubmitEvent) {
-    e.preventDefault();
+  /** Crea la partida (con amigo o contra la máquina, si hay nivel) y entra en ella. */
+  async function createGame(tc: TimeControl, color: Color | 'random', botLevel?: BotLevel) {
     creating = true;
     error = '';
     try {
-      const body: CreateGameBody = { player, tc: friendTc, color };
+      const body: CreateGameBody = { player, tc, color };
       const res = await fetch('/api/games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,13 +154,26 @@
       });
       if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
       const { id } = await res.json();
-      if (mode === 'bot') saveBot(id, newBot(level));
+      if (botLevel) saveBot(id, newBot(botLevel));
       if (seeking) socket?.send({ t: 'cancel' });
       goto(`/${id}`);
     } catch (err) {
       error = `No se pudo crear la partida: ${(err as Error).message}`;
       creating = false;
     }
+  }
+
+  function submitDialog(e: SubmitEvent) {
+    e.preventDefault();
+    if (mode === 'bot') {
+      saveLastLevel(level);
+      savedLevel = level;
+    }
+    createGame(friendTc, color, mode === 'bot' ? level : undefined);
+  }
+
+  function playBotNow(tc: TimeControl) {
+    createGame({ initial: tc.initial, increment: tc.increment }, 'random', savedLevel);
   }
 
   const minuteLabel = (m: number) => (m === 0.5 ? '½' : String(m));
@@ -157,9 +216,18 @@
   </div>
 
   {#if seeking}
-    <p class="seeking" role="status">
-      Buscando rival para {seeking}. Toca la casilla de nuevo para cancelar.
-    </p>
+    {@const tc = presetById(seeking)}
+    <div class="seeking" role="status">
+      {#if offerBot && tc}
+        <p>No hay nadie libre ahora mismo.</p>
+        <button class="btn primary" disabled={creating} onclick={() => playBotNow(tc)}>
+          Jugar {seeking} contra la máquina
+        </button>
+        <p class="wait">Si prefieres esperar, seguimos buscando rival.</p>
+      {:else}
+        <p>Buscando rival para {seeking}. Toca la casilla de nuevo para cancelar.</p>
+      {/if}
+    </div>
   {/if}
 
   <div class="modes">
@@ -172,9 +240,11 @@
   <p class="stats" aria-live="polite">
     {#if conn !== 'open'}
       Conectando…
-    {:else if stats}
-      {stats.players} {stats.players === 1 ? 'jugador conectado' : 'jugadores conectados'},
+    {:else if stats && stats.players >= LIVE_MIN_PLAYERS}
+      {stats.players} jugadores conectados,
       {stats.games} {stats.games === 1 ? 'partida en juego' : 'partidas en juego'}
+    {:else if stats && stats.played >= PLAYED_MIN}
+      {thousands(stats.played)} partidas jugadas en DameJaque
     {/if}
   </p>
 </section>
@@ -201,8 +271,37 @@
   </ul>
 </section>
 
+{#if challenge}
+  <aside class="challenge" aria-labelledby="challenge-title" aria-live="polite">
+    <p class="challenge-title" id="challenge-title"><span aria-hidden="true">♞&#xFE0E;</span> La máquina te reta</p>
+    <p class="challenge-text">
+      Una partida rápida {tcLabel(CHALLENGE_TC)}, nivel {BOT_LEVELS[savedLevel].toLowerCase()}. ¿Aceptas?
+    </p>
+    <div class="challenge-actions">
+      <button class="btn" onclick={() => (challenge = false)}>Ahora no</button>
+      <button class="btn primary" disabled={creating} onclick={() => playBotNow(CHALLENGE_TC)}>
+        Acepto el reto
+      </button>
+    </div>
+  </aside>
+{/if}
+
+<footer class="foot">
+  <p class="foot-brand">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <rect x="0" y="0" width="8" height="8" fill="var(--brass)" />
+      <rect x="8" y="8" width="8" height="8" fill="var(--brass)" />
+      <rect x="8" y="0" width="8" height="8" fill="var(--line)" />
+      <rect x="0" y="8" width="8" height="8" fill="var(--line)" />
+    </svg>
+    {SITE.name}
+  </p>
+  <p>Ajedrez online gratis, sin registro y sin anuncios.</p>
+  <p>Hecho con muchísimo <span class="heart" role="img" aria-label="cariño">♥</span></p>
+</footer>
+
 <dialog bind:this={dialog} class="friend-dialog" onclick={(e) => e.target === dialog && dialog.close()}>
-  <form onsubmit={createFriendGame}>
+  <form onsubmit={submitDialog}>
     {#if mode === 'bot'}
       <h2>Jugar contra la máquina</h2>
       <p class="hint">Una partida normal, con reloj, contra el ordenador.</p>
@@ -356,9 +455,18 @@
   }
 
   .seeking {
-    margin: 0;
+    display: grid;
+    gap: 8px;
     color: var(--brass);
     font-weight: 600;
+  }
+  .seeking p {
+    margin: 0;
+  }
+  .seeking .wait {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.92rem;
   }
   .modes {
     display: grid;
@@ -405,6 +513,96 @@
   }
   .about strong {
     color: var(--text);
+  }
+
+  .foot {
+    /* Mismo ancho que el texto de arriba, para que la línea no sobresalga. */
+    margin-inline: max(var(--gutter), calc((100% - 520px) / 2 + var(--gutter)));
+    padding: 24px 0 calc(32px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+  .foot p {
+    margin: 0;
+  }
+  .foot .foot-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+  .foot-brand svg {
+    border-radius: 3px;
+  }
+  .heart {
+    color: var(--danger);
+  }
+
+  /* ─── Reto de la máquina ─────────────────────────────────── */
+  .challenge {
+    position: fixed;
+    z-index: 10;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: grid;
+    gap: 6px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.55);
+    animation: rise 0.35s ease-out;
+  }
+  @media (min-width: 600px) {
+    .challenge {
+      left: auto;
+      right: 24px;
+      bottom: 24px;
+      width: 340px;
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .challenge {
+      animation: none;
+    }
+  }
+  .challenge p {
+    margin: 0;
+  }
+  .challenge-title {
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+  }
+  .challenge-title span {
+    font-size: 1.3em;
+    line-height: 1;
+    color: var(--brass);
+  }
+  .challenge-text {
+    color: var(--muted);
+  }
+  .challenge-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   /* ─── Diálogo ───────────────────────────────────────────── */
