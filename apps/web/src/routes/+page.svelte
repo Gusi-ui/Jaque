@@ -264,9 +264,7 @@
     {SITE.name}
   </p>
   <p>Ajedrez online gratis, sin registro y sin anuncios.</p>
-  <p>
-    <a href="https://github.com/Gusi-ui/Jaque" rel="noopener">Código abierto</a> con licencia GPL-3.0
-  </p>
+  <p>Hecho con muchísimo <span class="heart" role="img" aria-label="cariño">♥</span></p>
 </footer>
 
 <dialog bind:this={dialog} class="friend-dialog" onclick={(e) => e.target === dialog && dialog.close()}>
@@ -524,13 +522,8 @@
   .foot-brand svg {
     border-radius: 3px;
   }
-  .foot a {
-    color: inherit;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .foot a:hover {
-    color: var(--brass);
+  .heart {
+    color: var(--danger);
   }
 
   /* ─── Diálogo ───────────────────────────────────────────── */
