@@ -102,6 +102,14 @@ test('coronación: completa la pieza y acepta otra que dé mate', () => {
   assert.equal(run.play('h7h8r'), 'solved');
 });
 
+test('isPromotion: solo un peón que llega a la última fila', () => {
+  const run = new PuzzleRun(puzzle(PROMO, ['h7h8q']));
+  assert.equal(run.isPromotion('h7', 'h8'), true);
+  assert.equal(run.isPromotion('b6', 'b7'), false, 'el rey no corona');
+  const other = new PuzzleRun(puzzle(SCHOLAR, ['h5f7']));
+  assert.equal(other.isPromotion('e4', 'e5'), false, 'un peón que no llega a la última fila');
+});
+
 test('dests: solo las del bando que mueve', () => {
   const run = new PuzzleRun(puzzle(PROMO, ['h7h8q']));
   assert.deepEqual(run.dests().get('h7'), ['h8']);
