@@ -40,6 +40,10 @@ export class Game extends Engine {
     super.draw(color, offer, now);
   }
 
+  override takeback(color: Color, offer: boolean, now = Date.now()) {
+    super.takeback(color, offer, now);
+  }
+
   override offerRematch(color: Color, offer: boolean, now = Date.now()) {
     return super.offerRematch(color, offer, now);
   }
