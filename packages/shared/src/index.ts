@@ -106,6 +106,8 @@ export interface GameView {
   clock: ClockView;
   seats: Record<Color, SeatView>;
   drawOffer: Color | null;
+  /** Quién ha pedido deshacer su última jugada, o null. */
+  takeback: Color | null;
   rematch: Color[];
   /** Ms que le quedan al jugador con el turno para hacer su primera jugada. */
   firstMoveDeadline: number | null;
@@ -126,6 +128,7 @@ export type ClientGameMsg =
   | { t: 'resign' }
   | { t: 'abort' }
   | { t: 'draw'; offer: boolean }
+  | { t: 'takeback'; offer: boolean; ply?: number }
   | { t: 'rematch'; offer: boolean }
   | { t: 'ping' };
 

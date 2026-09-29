@@ -83,3 +83,14 @@ test('política: tablas, revancha y abandono', () => {
   const lost: GameView = { ...view(g), status: 'started', turn: 'black', drawOffer: null, moves: Array(30).fill('e2e4'), fen: 'rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1' };
   assert.deepEqual(planBot(lost, 'black'), { send: [{ t: 'resign' }], think: false });
 });
+
+test('política: acepta siempre deshacer y nunca lo pide', () => {
+  const g = new Game('AAAAAAAA', { initial: 60, increment: 0 }, 0);
+  g.join('human-player-00000', 'white', 0);
+  g.join('bot-player-0000000', 'black', 0);
+  for (const [i, m] of ['e2e4', 'e7e5', 'g1f3'].entries()) g.move(i % 2 ? 'black' : 'white', m, i, 0);
+  g.takeback('white', true, undefined, 0);
+  assert.deepEqual(planBot(view(g), 'black'), { send: [{ t: 'takeback', offer: true, ply: 3 }], think: false });
+  g.takeback('black', true, undefined, 0);
+  assert.deepEqual(planBot(view(g), 'black').send, []);
+});

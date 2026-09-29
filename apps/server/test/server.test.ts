@@ -137,7 +137,7 @@ test('keepalive: responde pong al ping, también a los espectadores', async () =
   for (const c of [spectator, lobby]) c.ws.close();
 });
 
-test('contra la máquina: se sienta, juega, acepta tablas y la revancha', async () => {
+test('contra la máquina: se sienta, juega, deja deshacer, acepta tablas y la revancha', async () => {
   const r = await fetch(`${BASE}/api/games`, {
     method: 'POST',
     body: JSON.stringify({ player: P1, tc: { initial: 300, increment: 0 }, color: 'white' })
@@ -162,6 +162,16 @@ test('contra la máquina: se sienta, juega, acepta tablas y la revancha', async 
   a.send({ t: 'move', uci: 'e2e4', ply: 0 });
   const reply = await a.next((m) => m.t === 'state' && m.game.moves.length === 2);
   assert.equal(reply.game.turn, 'white', 'la máquina ha contestado');
+
+  // `next` también mira los mensajes ya recibidos: solo cuenta lo que llega tras la petición.
+  let asked = false;
+  a.send({ t: 'takeback', offer: true });
+  await a.next((m) => {
+    if (m.t === 'state' && m.game.takeback === 'white') asked = true;
+    return asked && m.t === 'state' && m.game.moves.length === 0;
+  });
+  a.send({ t: 'move', uci: 'd2d4', ply: 0 });
+  await a.next((m) => m.t === 'state' && m.game.moves.length === 2 && m.game.moves[0] === 'd2d4');
 
   a.send({ t: 'draw', offer: true });
   await a.next((m) => m.t === 'state' && m.game.status === 'draw');

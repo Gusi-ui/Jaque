@@ -105,6 +105,18 @@ describe('partidas', () => {
     for (const c of [a, b, a2]) c.ws.close();
   });
 
+  it('deshacer: se pide y se acepta por WebSocket', async () => {
+    const { a, b } = await startedGame();
+    await play(a, b, ['e2e4', 'e7e5', 'g1f3']);
+    a.send({ t: 'takeback', offer: true });
+    await b.next((m) => m.t === 'state' && m.game.takeback === 'white');
+    b.send({ t: 'takeback', offer: true });
+    const undone = await a.next((m) => m.t === 'state' && m.game.moves.length === 2);
+    expect(undone.game.turn).toBe('white');
+    expect(undone.game.takeback).toBe(null);
+    for (const c of [a, b]) c.ws.close();
+  });
+
   it('la partida terminada se guarda en D1; las anuladas no', async () => {
     const { id, a, b } = await startedGame();
     await play(a, b, ['f2f3', 'e7e5', 'g2g4', 'd8h4']);
