@@ -10,11 +10,13 @@
     ".": "./src/index.ts",
     "./bot": "./src/bot.ts",
     "./levels": "./src/levels.ts",
-    "./puzzle": "./src/puzzle.ts"
+    "./puzzle": "./src/puzzle.ts",
+    "./puzzles.json": "./src/puzzles.json"
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "puzzles": "tsx scripts/build-puzzles.ts"
   },
   "dependencies": {
     "@jaque/shared": "workspace:*",

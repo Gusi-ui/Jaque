@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GROUPS, PuzzleRun, dayKey, puzzleOfDay, type DailyPuzzle, type PuzzleData, type PuzzleEntry } from '../src/puzzle.ts';
+import { readFileSync } from 'node:fs';
+import { GROUPS, GROUP_SIZE, PuzzleRun, dayKey, puzzleOfDay, type DailyPuzzle, type PuzzleData, type PuzzleEntry } from '../src/puzzle.ts';
 
 const puzzle = (fen: string, solution: string[]): DailyPuzzle => ({
   key: '2026-01-05',
@@ -104,4 +105,30 @@ test('coronación: completa la pieza y acepta otra que dé mate', () => {
 test('dests: solo las del bando que mueve', () => {
   const run = new PuzzleRun(puzzle(PROMO, ['h7h8q']));
   assert.deepEqual(run.dests().get('h7'), ['h8']);
+});
+
+test('puzzles.json: 7 grupos de 53, soluciones legales que acaban en mate', () => {
+  const data = JSON.parse(readFileSync(new URL('../src/puzzles.json', import.meta.url), 'utf8')) as PuzzleData;
+  assert.equal(data.v, 1);
+  assert.equal(data.days.length, 7);
+  const ids = new Set<string>();
+  data.days.forEach((group, d) => {
+    assert.equal(group.length, GROUP_SIZE, `grupo ${d}`);
+    for (const [id, fen, moves, rating] of group) {
+      assert.ok(!ids.has(id), `repetido ${id}`);
+      ids.add(id);
+      assert.ok(rating >= GROUPS[d].min && rating < GROUPS[d].max, `${id}: Elo ${rating}`);
+      const solution = moves.split(' ');
+      assert.equal(Math.ceil(solution.length / 2), GROUPS[d].goal, `${id}: mate en ${GROUPS[d].goal}`);
+      const run = new PuzzleRun({ key: '', id, fen, solution, goal: GROUPS[d].goal });
+      for (let i = 0; i < solution.length; i += 2) {
+        const r = run.play(solution[i]);
+        if (i === solution.length - 1) assert.equal(r, 'solved', id);
+        else {
+          assert.deepEqual(r, { reply: solution[i + 1] }, id);
+          run.step();
+        }
+      }
+    }
+  });
 });
