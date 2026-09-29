@@ -140,6 +140,9 @@ export class GameRoom extends DurableObject<Env> {
       case 'draw':
         game.draw(color, !!msg.offer, now);
         break;
+      case 'takeback':
+        game.takeback(color, !!msg.offer, msg.ply === undefined ? undefined : Number(msg.ply), now);
+        break;
       case 'rematch':
         return this.rematch(color, !!msg.offer, now);
       default:

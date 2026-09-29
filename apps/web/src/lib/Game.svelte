@@ -90,6 +90,15 @@
   const over = $derived(!!game && isOver(game.status));
   const shownTurn = $derived<Color>(shownPly % 2 === 0 ? 'white' : 'black');
 
+  /** Mismo criterio que el motor (el bloqueo tras un rechazo lo decide el servidor). */
+  const canTakeback = $derived(
+    !!game &&
+      !!you &&
+      game.status === 'started' &&
+      lastPly >= (you === 'white' ? 1 : 2) &&
+      // Con la petición del rival pendiente, se responde en su aviso: pedir aquí la aceptaría.
+      game.takeback !== opposite(you)
+  );
   const canAbort = $derived(
     !!game &&
       !!you &&
@@ -144,6 +153,13 @@
         await tick();
         board?.playPremove();
       }
+    }
+    // Se ha deshecho: volver al directo y olvidar la premove.
+    if (next.moves.length < prev.moves.length) {
+      sound.move();
+      viewPly = null;
+      promo = null;
+      board?.cancelPremove();
     }
     if (!isOver(prev.status) && isOver(next.status)) {
       sound.end();
@@ -452,10 +468,26 @@
             <button class="btn" onclick={() => send({ t: 'draw', offer: false })}>Rechazar</button>
           </div>
         {/if}
+        {#if game.takeback && game.takeback !== you}
+          <div class="offer">
+            <span>Tu rival pide deshacer su última jugada</span>
+            <button class="btn primary" onclick={() => send({ t: 'takeback', offer: true, ply: lastPly })}>Aceptar</button>
+            <button class="btn" onclick={() => send({ t: 'takeback', offer: false, ply: lastPly })}>Rechazar</button>
+          </div>
+        {/if}
         <div class="row">
           {#if canAbort}
             <button class="btn" onclick={() => send({ t: 'abort' })}>Anular partida</button>
           {:else}
+            {#if canTakeback}
+              <button
+                class="btn"
+                aria-pressed={game.takeback === you}
+                onclick={() => send({ t: 'takeback', offer: game?.takeback !== you, ply: lastPly })}
+              >
+                {game.takeback === you ? 'Deshacer pedido' : 'Deshacer'}
+              </button>
+            {/if}
             <button
               class="btn"
               disabled={game.drawOffer === you}
@@ -857,6 +889,7 @@
   }
   .offer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     margin-bottom: 10px;
