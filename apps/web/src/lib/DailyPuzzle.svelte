@@ -202,14 +202,20 @@
 {/if}
 
 <style>
+  /* Una tarjeta: el problema acompaña a la rejilla de ritmos, no compite con ella. */
   .puzzle {
-    max-width: 520px;
-    margin: 0 auto;
-    padding: 0 var(--gutter) 48px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--surface);
   }
   .puzzle h2 {
     margin: 0 0 12px;
-    font-size: 1.1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
   .puzzle-body {
     display: grid;
@@ -235,6 +241,26 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+  }
+  /* Columna derecha de la portada en escritorio (mismo corte que `.home`): tablero pequeño. */
+  @media (min-width: 960px) {
+    .puzzle-body {
+      grid-template-columns: 160px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .puzzle-goal {
+      font-size: 0.92rem;
+    }
+    .puzzle-msg {
+      margin-bottom: 10px;
+      font-size: 0.88rem;
+    }
+    .puzzle-actions .btn {
+      min-height: 36px;
+      padding: 0 12px;
+      font-size: 0.85rem;
+    }
   }
   @media (max-width: 519px) {
     .puzzle-body {
