@@ -57,6 +57,12 @@
     max-width: 1100px;
     margin: 0 auto;
   }
+  /* Pantallas muy bajas (móvil en horizontal): cada píxel de alto es para el tablero. */
+  @media (max-height: 500px) {
+    .top {
+      height: 40px;
+    }
+  }
   .brand {
     display: inline-flex;
     align-items: center;
