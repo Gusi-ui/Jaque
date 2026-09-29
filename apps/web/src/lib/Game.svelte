@@ -320,17 +320,20 @@
     <div class="who">
       <span class="piece-dot {c}" aria-hidden="true"></span>
       <span class="name">
-        <span>{colorName(c)}{#if you === c}<span class="you">tú</span>{/if}</span>
+        <span class="first-line">
+          {colorName(c)}{#if you === c}<span class="you">tú</span>{/if}
+          <!-- Junto al nombre, para que la etiqueta de la máquina tenga todo el ancho. -->
+          {#if game?.seats[c].taken}
+            <span class="presence" class:on={game.seats[c].online} title={game.seats[c].online ? 'Conectado' : 'Desconectado'}>
+              <span class="sr-only">{game.seats[c].online ? 'Conectado' : 'Desconectado'}</span>
+            </span>
+          {:else}
+            <span class="waiting-seat">libre</span>
+          {/if}
+        </span>
         <!-- En su propia línea, para que el reloj no la tape. -->
         {#if botColor === c && bot}<span class="you bot">máquina · {BOT_LEVELS[bot.level].toLowerCase()}</span>{/if}
       </span>
-      {#if game?.seats[c].taken}
-        <span class="presence" class:on={game.seats[c].online} title={game.seats[c].online ? 'Conectado' : 'Desconectado'}>
-          <span class="sr-only">{game.seats[c].online ? 'Conectado' : 'Desconectado'}</span>
-        </span>
-      {:else}
-        <span class="waiting-seat">libre</span>
-      {/if}
     </div>
     <div class="clock" aria-label="Reloj de {colorName(c).toLowerCase()}">{formatClock(ms)}</div>
     {#if game?.firstMoveDeadline && game.turn === c && game.status === 'started'}
@@ -405,7 +408,7 @@
         {:else}
           <li class="no-moves">{tcLabel(game.tc)} · {SPEED_LABEL[speedOf(game.tc)]}</li>
         {/each}
-        {#if over}
+        {#if over && game.status !== 'aborted'}
           <li class="score">{scoreText(game.winner, game.status)}</li>
         {/if}
       </ol>
@@ -470,7 +473,7 @@
         </div>
       {:else if over}
         <div class="result" role="status">
-          <p class="score-big">{scoreText(game.winner, game.status)}</p>
+          {#if game.status !== 'aborted'}<p class="score-big">{scoreText(game.winner, game.status)}</p>{/if}
           <p class="headline">{resultText(game.status, game.winner)}</p>
           {#if you && game.winner === you}<p class="hint">Bien jugado.</p>{/if}
         </div>
@@ -632,7 +635,16 @@
     background: var(--surface-2);
     color: var(--muted);
   }
+  .first-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .first-line .you {
+    margin-left: -2px;
+  }
   .presence {
+    flex: none;
     width: 8px;
     height: 8px;
     border-radius: 50%;
