@@ -195,10 +195,17 @@
   {@html `<script type="application/ld+json">${jsonLd}</script>`}
 </svelte:head>
 
-<section class="lobby">
-  <h1 class="title">Ajedrez online, gratis y sin registro</h1>
-  <p class="lead">Elige un ritmo y te emparejamos con alguien.</p>
+<!--
+  La rejilla de ritmos manda. En escritorio, los otros modos y el problema del día
+  van en una columna a su derecha; en el móvil, debajo.
+-->
+<div class="home">
+  <header class="home-head">
+    <h1 class="title">Ajedrez online, gratis y sin registro</h1>
+    <p class="lead">Elige un ritmo y te emparejamos con alguien.</p>
+  </header>
 
+<section class="lobby" aria-label="Buscar rival">
   <div class="grid" role="group" aria-label="Ritmos de juego">
     {#each PRESETS as p, i (p.id)}
       {@const waiting = stats?.seeks[p.id] ?? 0}
@@ -238,11 +245,6 @@
     </div>
   {/if}
 
-  <div class="modes">
-    <button class="btn friend" onclick={() => openDialog('friend')}>Jugar con un amigo</button>
-    <button class="btn friend" onclick={() => openDialog('bot')}>Jugar contra la máquina</button>
-  </div>
-
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
   <p class="stats" aria-live="polite">
@@ -257,7 +259,22 @@
   </p>
 </section>
 
-<DailyPuzzle onactivity={quietChallenge} />
+  <aside class="side">
+    <section class="modes" aria-labelledby="modes-title">
+      <h2 class="side-title" id="modes-title">Otras formas de jugar</h2>
+      <button class="mode" onclick={() => openDialog('friend')}>
+        <span class="mode-name">Jugar con un amigo</span>
+        <span class="mode-desc">Crea un enlace y compártelo</span>
+      </button>
+      <button class="mode" onclick={() => openDialog('bot')}>
+        <span class="mode-name">Jugar contra la máquina</span>
+        <span class="mode-desc">Tres niveles, de fácil a difícil</span>
+      </button>
+    </section>
+
+    <DailyPuzzle onactivity={quietChallenge} />
+  </aside>
+</div>
 
 <section class="about" aria-labelledby="about-title">
   <h2 id="about-title">Juega al ajedrez en segundos</h2>
@@ -383,12 +400,25 @@
 </dialog>
 
 <style>
-  .lobby {
+  .home {
     max-width: 520px;
     margin: 0 auto;
     padding: 6vh var(--gutter) 48px;
     display: grid;
     gap: 16px;
+  }
+  .home-head {
+    display: grid;
+    gap: 16px;
+  }
+  .lobby {
+    display: grid;
+    gap: 16px;
+  }
+  .side {
+    display: grid;
+    gap: 16px;
+    align-content: start;
   }
   .title {
     margin: 0;
@@ -396,6 +426,7 @@
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.15;
+    text-wrap: balance;
   }
   .lead {
     margin: 0 0 4px;
@@ -480,13 +511,44 @@
   }
   .modes {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 8px;
   }
-  .friend {
+  .side-title {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .mode {
+    display: grid;
+    gap: 2px;
     width: 100%;
-    min-height: 52px;
-    font-size: 1.05rem;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .mode:hover {
+    border-color: var(--brass);
+  }
+  .mode:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+  .mode-name {
+    font-weight: 700;
+    font-size: 1.02rem;
+  }
+  .mode-desc {
+    color: var(--muted);
+    font-size: 0.88rem;
   }
   .error {
     margin: 0;
@@ -527,7 +589,8 @@
 
   .foot {
     /* Mismo ancho que el texto de arriba, para que la línea no sobresalga. */
-    margin-inline: max(var(--gutter), calc((100% - 520px) / 2 + var(--gutter)));
+    --content: 520px;
+    margin-inline: max(var(--gutter), calc((100% - var(--content)) / 2 + var(--gutter)));
     padding: 24px 0 calc(32px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
     display: grid;
@@ -555,6 +618,41 @@
   }
   .heart {
     color: var(--danger);
+  }
+
+  /* ─── Escritorio: dos columnas ───────────────────────────── */
+  /* Título arriba a todo el ancho; debajo, rejilla (la protagonista) y columna de 320 px. */
+  @media (min-width: 960px) {
+    .home {
+      max-width: 916px;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-areas:
+        'head head'
+        'lobby side';
+      column-gap: 48px;
+      row-gap: 20px;
+    }
+    .home-head {
+      grid-area: head;
+    }
+    .lobby {
+      grid-area: lobby;
+    }
+    .side {
+      grid-area: side;
+      gap: 24px;
+    }
+    .about {
+      max-width: 916px;
+    }
+    .about ul {
+      grid-template-columns: 1fr 1fr;
+      column-gap: 32px;
+      row-gap: 10px;
+    }
+    .foot {
+      --content: 916px;
+    }
   }
 
   /* ─── Reto de la máquina ─────────────────────────────────── */
