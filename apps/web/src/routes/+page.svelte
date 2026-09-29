@@ -20,6 +20,7 @@
   import { BOT_LEVELS, type BotLevel } from '@jaque/engine/levels';
   import { SITE } from '$lib/site';
   import { thousands } from '$lib/format';
+  import DailyPuzzle from '$lib/DailyPuzzle.svelte';
 
   // La portada se prerenderiza: el id del jugador solo existe en el navegador.
   const player = browser ? playerId() : '';
@@ -69,6 +70,7 @@
   const CHALLENGE_MS = 8_000;
   const CHALLENGE_KEY = 'jaque:reto-visto';
   let challenge = $state(false);
+  let challengeTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Buscar rival manda sobre el reto.
   $effect(() => {
@@ -99,7 +101,7 @@
 
   onMount(() => {
     savedLevel = level = lastLevel();
-    const challengeTimer = setTimeout(showChallenge, CHALLENGE_MS);
+    challengeTimer = setTimeout(showChallenge, CHALLENGE_MS);
     socket = connect<ServerLobbyMsg, ClientLobbyMsg>(`/ws/lobby?player=${player}`, {
       onMessage(msg) {
         if (msg.t === 'stats') stats = msg;
@@ -118,6 +120,12 @@
       socket?.close();
     };
   });
+
+  /** Quien ya está resolviendo el problema del día no necesita que la máquina le rete. */
+  function quietChallenge() {
+    clearTimeout(challengeTimer);
+    challenge = false;
+  }
 
   function showChallenge() {
     if (seeking || creating || dialog?.open) return;
@@ -248,6 +256,8 @@
     {/if}
   </p>
 </section>
+
+<DailyPuzzle onactivity={quietChallenge} />
 
 <section class="about" aria-labelledby="about-title">
   <h2 id="about-title">Juega al ajedrez en segundos</h2>
