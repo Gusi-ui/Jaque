@@ -15,6 +15,7 @@
     type ServerGameMsg
   } from '@jaque/shared';
   import Board from './Board.svelte';
+  import PromotionPicker, { type PromotionRole } from './PromotionPicker.svelte';
   import Icon from './Icon.svelte';
   import { connect, type SocketStatus } from './socket';
   import { playerId } from './player';
@@ -248,7 +249,7 @@
     }
   }
 
-  function choosePromotion(role: 'q' | 'r' | 'b' | 'n') {
+  function choosePromotion(role: PromotionRole) {
     if (!promo) return;
     sendMove(`${promo.orig}${promo.dest}${role}`);
     promo = null;
@@ -401,17 +402,7 @@
         onmove={onMove}
       />
       {#if promo}
-        {@const c = you ?? 'white'}
-        <div class="promo" role="dialog" aria-label="Elige pieza para coronar">
-          <div class="promo-box cg-wrap">
-            {#each [['q', 'queen', 'Dama'], ['r', 'rook', 'Torre'], ['b', 'bishop', 'Alfil'], ['n', 'knight', 'Caballo']] as const as [r, role, label] (r)}
-              <button class="promo-piece" onclick={() => choosePromotion(r)} aria-label={label}>
-                <piece class="{role} {c}"></piece>
-              </button>
-            {/each}
-          </div>
-          <button class="promo-cancel" onclick={cancelPromotion}>Cancelar</button>
-        </div>
+        <PromotionPicker color={you ?? 'white'} onchoose={choosePromotion} oncancel={cancelPromotion} />
       {/if}
       {#if conn !== 'open'}
         <div class="reconnecting" role="status">Reconectando…</div>
@@ -972,53 +963,6 @@
   }
 
   /* ─── Coronación y avisos ────────────────────────────────── */
-  .promo {
-    position: absolute;
-    inset: 0;
-    z-index: 10;
-    display: grid;
-    place-content: center;
-    gap: 12px;
-    background: rgb(27 33 48 / 0.55);
-    backdrop-filter: blur(2px);
-  }
-  .promo-box {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-  }
-  .promo-piece {
-    width: min(18vw, 88px);
-    aspect-ratio: 1;
-    border: 0;
-    border-radius: 50%;
-    background: var(--sq-light);
-    position: relative;
-    transition: transform 0.1s;
-  }
-  .promo-piece:hover {
-    transform: scale(1.06);
-    background: #fff;
-  }
-  .promo-piece piece {
-    position: absolute;
-    top: 8%;
-    left: 8%;
-    width: 84%;
-    height: 84%;
-    background-size: cover;
-    transform: none;
-  }
-  .promo-box.cg-wrap {
-    width: auto;
-    height: auto;
-  }
-  .promo-cancel {
-    border: 0;
-    background: none;
-    color: #fff;
-    text-decoration: underline;
-  }
   .reconnecting {
     position: absolute;
     top: 10px;

@@ -5,6 +5,7 @@
   import type { Color } from '@jaque/shared';
   import type { DailyPuzzle, PuzzleData, PuzzleRun } from '@jaque/engine/puzzle';
   import type BoardComponent from './Board.svelte';
+  import PromotionPicker, { type PromotionRole } from './PromotionPicker.svelte';
   import { sound } from './sound';
 
   interface Props {
@@ -43,33 +44,66 @@
   let busy = $state(false);
   let shapes = $state.raw<DrawShape[]>([]);
   let failed = $state(false);
+  /** Coronación pendiente de elegir pieza. */
+  let promo = $state<{ orig: Key; dest: Key } | null>(null);
   let touched = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let logic: typeof import('@jaque/engine/puzzle') | undefined;
+  let data: PuzzleData | undefined;
 
   onMount(() => {
     let alive = true;
     Promise.all([import('./Board.svelte'), import('@jaque/engine/puzzle'), import('@jaque/engine/puzzles.json')])
-      .then(([boardModule, logic, list]) => {
+      .then(([boardModule, puzzleModule, list]) => {
         if (!alive) return;
-        const today = logic.puzzleOfDay(new Date(), list.default as unknown as PuzzleData);
-        run = new logic.PuzzleRun(today);
-        side = run.side;
-        const saved = loadResult(today.key);
-        if (saved) {
-          while (run.step());
-          result = saved;
-          message = MESSAGES[saved];
-        }
-        puzzle = today;
-        sync();
+        logic = puzzleModule;
+        data = list.default as unknown as PuzzleData;
+        load();
         Board = boardModule.default;
       })
       .catch(() => (failed = true));
+
+    // A medianoche (en Madrid) llega otro problema sin recargar. Mientras miras la
+    // pestaña solo se cambia si no lo has tocado; al volver a ella, también si ya
+    // lo habías terminado. A medias, nunca.
+    const everyMinute = setInterval(() => newDay(false), 60_000);
+    const onVisible = () => document.visibilityState === 'visible' && newDay(true);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
       clearTimeout(timer);
+      clearInterval(everyMinute);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   });
+
+  /** Prepara el problema de hoy, con el resultado guardado si lo hay. */
+  function load() {
+    if (!logic || !data) return;
+    clearTimeout(timer);
+    const today = logic.puzzleOfDay(new Date(), data);
+    run = new logic.PuzzleRun(today);
+    side = run.side;
+    touched = false;
+    busy = false;
+    promo = null;
+    shapes = [];
+    result = null;
+    message = 'Encuentra la jugada.';
+    const saved = loadResult(today.key);
+    if (saved) {
+      while (run.step());
+      result = saved;
+      message = MESSAGES[saved];
+    }
+    puzzle = today;
+    sync();
+  }
+
+  function newDay(returning: boolean) {
+    if (!logic || !puzzle || logic.dayKey(new Date()) === puzzle.key) return;
+    if (!touched || (returning && result)) load();
+  }
 
   function sync() {
     if (!run) return;
@@ -92,7 +126,29 @@
     if (!run || busy || result) return;
     touch();
     shapes = [];
-    const outcome = run.play(run.uci(orig, dest));
+    // Al coronar se elige la pieza, como en la partida: elegirla forma parte del problema.
+    if (run.isPromotion(orig, dest)) {
+      promo = { orig, dest };
+      return;
+    }
+    play(`${orig}${dest}`);
+  }
+
+  function choosePromotion(role: PromotionRole) {
+    if (!promo) return;
+    const { orig, dest } = promo;
+    promo = null;
+    play(`${orig}${dest}${role}`);
+  }
+
+  function cancelPromotion() {
+    promo = null;
+    board?.cancelMove();
+  }
+
+  function play(uci: string) {
+    if (!run) return;
+    const outcome = run.play(uci);
     if (outcome === 'wrong') {
       board?.cancelMove();
       message = 'Esa no es. Prueba otra vez.';
@@ -172,13 +228,16 @@
             fen={view.fen}
             orientation={side}
             turnColor={view.turn}
-            movableColor={result || busy ? null : side}
+            movableColor={result || busy || promo ? null : side}
             dests={view.dests}
             lastMove={view.lastMove}
             check={view.check}
             {shapes}
             onmove={onMove}
           />
+          {#if promo}
+            <PromotionPicker color={side} onchoose={choosePromotion} oncancel={cancelPromotion} />
+          {/if}
         {:else}
           <div class="board-slot" aria-hidden="true"></div>
         {/if}
@@ -222,6 +281,9 @@
     grid-template-columns: 240px 1fr;
     gap: 16px;
     align-items: center;
+  }
+  .puzzle-board {
+    position: relative;
   }
   .board-slot {
     aspect-ratio: 1;
