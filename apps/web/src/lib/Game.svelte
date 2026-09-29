@@ -22,7 +22,7 @@
   import { colorName, formatClock, resultText, scoreText } from './format';
   import { BOT_LEVELS } from '@jaque/engine/levels';
   import { botFor, saveBot } from './bot-config';
-  import { pageTitle } from './site';
+  import { SITE, pageTitle } from './site';
 
   let { id }: { id: string } = $props();
 
@@ -40,6 +40,8 @@
   let flipped = $state(false);
   let promo = $state<{ orig: Key; dest: Key } | null>(null);
   let confirmResign = $state(false);
+  /** No se pudo descargar el motor de la máquina (p. ej., pestaña abierta antes de un despliegue). */
+  let botFailed = $state(false);
   let copied = $state(false);
   let toast = $state('');
   let board = $state<ReturnType<typeof Board>>();
@@ -195,9 +197,12 @@
       // El motor de la máquina solo se descarga en las partidas contra ella.
       if (bot) {
         const cfg = bot;
-        import('./bot').then(({ startBot }) => {
-          if (!cancelled) botHandle = startBot(id, cfg);
-        });
+        import('./bot')
+          .then(({ startBot }) => {
+            if (!cancelled) botHandle = startBot(id, cfg);
+          })
+          // Sin esto la partida se quedaba esperando a la máquina para siempre.
+          .catch(() => (botFailed = true));
       }
     });
 
@@ -434,8 +439,14 @@
       {#if game.status === 'waiting'}
         {#if bot && you}
           <div class="invite">
-            <p class="headline">La máquina se está sentando…</p>
-            <button class="btn" onclick={() => send({ t: 'abort' })}>Cancelar partida</button>
+            {#if botFailed}
+              <p class="headline">No se ha podido cargar la máquina</p>
+              <p class="hint">Puede que haya una versión nueva de {SITE.name}. Recarga la página para jugar.</p>
+              <button class="btn primary" onclick={() => location.reload()}>Recargar</button>
+            {:else}
+              <p class="headline">La máquina se está sentando…</p>
+              <button class="btn" onclick={() => send({ t: 'abort' })}>Cancelar partida</button>
+            {/if}
           </div>
         {:else if you}
           <div class="invite">
