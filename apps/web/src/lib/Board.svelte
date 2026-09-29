@@ -76,8 +76,12 @@
     return cg?.playPremove() ?? false;
   }
 
+  /**
+   * Deshace en el tablero una jugada que no se aceptó. Hay que restaurar todo,
+   * no solo la posición: al mover, chessground cambia el turno y vacía los destinos.
+   */
   export function cancelMove() {
-    cg?.set({ fen, lastMove });
+    cg?.set(config());
   }
 </script>
 
