@@ -174,3 +174,111 @@ test('tras fromJSON se detecta la triple repetición (necesita el historial)', (
   assert.equal(copy.move('black', 'f6g8', copy.ply, T0), null);
   assert.equal(copy.status, 'repetition');
 });
+
+test('deshacer: si el rival aún no ha contestado, se deshace una jugada', () => {
+  const g = started();
+  play(g, ['e2e4', 'e7e5', 'g1f3']);
+  g.takeback('white', true, T0);
+  assert.equal(g.takebackOffer, 'white');
+  assert.equal(g.view(T0).takeback, 'white');
+  g.takeback('black', true, T0);
+  assert.deepEqual(g.moves, ['e2e4', 'e7e5']);
+  assert.deepEqual(g.sans, ['e4', 'e5']);
+  assert.equal(g.turn, 'white');
+  assert.equal(g.takebackOffer, null);
+});
+
+test('deshacer: si el rival ya contestó, se deshacen dos', () => {
+  const g = started();
+  play(g, ['e2e4', 'e7e5', 'g1f3', 'b8c6']);
+  g.takeback('white', true, T0);
+  g.takeback('black', true, T0);
+  assert.deepEqual(g.moves, ['e2e4', 'e7e5']);
+  assert.equal(g.turn, 'white');
+  assert.equal(g.move('white', 'f1c4', 2, T0), null, 'se puede seguir jugando');
+});
+
+test('deshacer: solo con la partida en curso y habiendo movido', () => {
+  const g = started();
+  g.takeback('white', true, T0);
+  assert.equal(g.takebackOffer, null, 'blancas sin mover');
+  play(g, ['e2e4']);
+  g.takeback('black', true, T0);
+  assert.equal(g.takebackOffer, null, 'negras sin mover');
+  assert.ok(g.canTakeback('white'));
+  assert.ok(!g.canTakeback('black'));
+  g.resign('black', T0);
+  g.takeback('white', true, T0);
+  assert.equal(g.takebackOffer, null, 'partida terminada');
+});
+
+test('deshacer: pedir cuando el rival ya lo pidió acepta', () => {
+  const g = started();
+  play(g, ['e2e4', 'e7e5', 'g1f3']);
+  g.takeback('white', true, T0);
+  g.takeback('black', true, T0);
+  assert.deepEqual(g.moves, ['e2e4', 'e7e5']);
+  g.takeback('white', true, T0);
+  assert.equal(g.takebackOffer, 'white', 'petición nueva, no un segundo deshacer');
+  assert.deepEqual(g.moves, ['e2e4', 'e7e5']);
+});
+
+test('deshacer: retirar, rechazar y caducar', () => {
+  const g = started();
+  play(g, ['e2e4', 'e7e5', 'g1f3']);
+  g.takeback('white', true, T0);
+  g.takeback('white', false, T0);
+  assert.equal(g.takebackOffer, null, 'retirada');
+  g.takeback('white', true, T0);
+  assert.equal(g.takebackOffer, 'white', 'retirar no bloquea');
+
+  g.takeback('black', false, T0);
+  assert.equal(g.takebackOffer, null, 'rechazada');
+  g.takeback('white', true, T0);
+  assert.equal(g.takebackOffer, null, 'bloqueada hasta la siguiente jugada');
+
+  play(g, ['b8c6']);
+  assert.ok(g.canTakeback('white'), 'con una jugada nueva se puede otra vez');
+  g.takeback('white', true, T0);
+  g.move('white', 'f1c4', 4, T0);
+  assert.equal(g.takebackOffer, null, 'mover anula la petición');
+});
+
+test('deshacer: relojes, tablas y plazo de primera jugada', () => {
+  const g = started({ initial: 60, increment: 0 });
+  play(g, ['e2e4', 'e7e5'], T0);
+  g.move('white', 'g1f3', 2, T0 + 10_000);
+  g.draw('white', true, T0 + 10_000);
+  g.takeback('white', true, T0 + 12_000);
+  g.takeback('black', true, T0 + 15_000);
+  assert.equal(g.drawOffer, null, 'la oferta de tablas era de otra posición');
+  assert.equal(g.turn, 'white');
+  assert.equal(g.remaining('white', T0 + 15_000), 50_000, 'no se devuelve el tiempo');
+  assert.equal(g.remaining('black', T0 + 15_000), 55_000, 'se congela el reloj que corría');
+  assert.equal(g.remaining('white', T0 + 16_000), 49_000, 'y el turno arranca al deshacer');
+
+  const h = started();
+  play(h, ['e2e4', 'e7e5']);
+  h.takeback('black', true, T0 + 1_000);
+  h.takeback('white', true, T0 + 2_000);
+  assert.deepEqual(h.moves, ['e2e4']);
+  assert.equal(h.view(T0 + 2_000).clock.running, null, 'con menos de dos jugadas el reloj se para');
+  assert.equal(h.nextDeadline(), T0 + 2_000 + FIRST_MOVE_MS);
+  assert.equal(h.tick(T0 + 3_000), false, 'no se anula al instante');
+});
+
+test('deshacer: toJSON / fromJSON, también con datos antiguos', () => {
+  const g = started();
+  play(g, ['e2e4', 'e7e5', 'g1f3']);
+  g.takeback('white', true, T0);
+  const copy = Game.fromJSON(JSON.parse(JSON.stringify(g)));
+  assert.equal(copy.takebackOffer, 'white');
+  assert.deepEqual(copy.toJSON(), g.toJSON());
+
+  const old = g.toJSON() as Partial<ReturnType<Game['toJSON']>>;
+  delete old.takeback;
+  delete old.noTakebackAt;
+  const legacy = Game.fromJSON(old as ReturnType<Game['toJSON']>);
+  assert.equal(legacy.takebackOffer, null);
+  assert.ok(legacy.canTakeback('white'));
+});

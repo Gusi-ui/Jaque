@@ -37,6 +37,9 @@ export interface GameData {
   status: GameStatus;
   winner: Color | null;
   drawOffer: Color | null;
+  /** Opcionales: las partidas guardadas antes de poder deshacer no los tienen. */
+  takeback?: Color | null;
+  noTakebackAt?: number | null;
   rematch: Color[];
   next: string | null;
   clock: Record<Color, number>;
@@ -63,6 +66,10 @@ export class Game {
   status: GameStatus = 'waiting';
   winner: Color | null = null;
   drawOffer: Color | null = null;
+  /** Quién ha pedido deshacer su última jugada. */
+  takebackOffer: Color | null = null;
+  /** Jugadas cuando se rechazó la última petición: hasta la siguiente no se puede pedir otra. */
+  private noTakebackAt: number | null = null;
   /** Id de la revancha, cuando la hay. */
   next: string | null = null;
 
@@ -161,6 +168,8 @@ export class Game {
     this.turnStart = now;
     // Una oferta de tablas caduca cuando el rival juega en lugar de aceptarla.
     if (this.drawOffer && this.drawOffer !== color) this.drawOffer = null;
+    // Y la petición de deshacer, en cuanto alguien mueve.
+    this.takebackOffer = null;
 
     if (this.chess.isCheckmate()) return this.end('mate', color, now), null;
     if (this.chess.isStalemate()) return this.end('stalemate', null, now), null;
@@ -201,6 +210,32 @@ export class Game {
     if (this.drawOffer === opposite(color)) return this.end('draw', null, now);
     if (this.ply < 2) return; // no tiene sentido antes de empezar
     this.drawOffer = color;
+    this.changed(now);
+  }
+
+  /** Partida en curso, quien pide ya ha movido y no la acaban de rechazar. */
+  canTakeback(color: Color) {
+    return (
+      this.status === 'started' &&
+      this.ply >= (color === 'white' ? 1 : 2) &&
+      this.ply !== this.noTakebackAt
+    );
+  }
+
+  /** Pedir (o aceptar) deshacer la última jugada propia; `offer: false` retira o rechaza. */
+  takeback(color: Color, offer: boolean, now: number) {
+    if (this.status !== 'started') return;
+    if (!offer) {
+      if (!this.takebackOffer) return;
+      // Rechazar la del rival impide pedirla otra vez hasta la siguiente jugada.
+      if (this.takebackOffer !== color) this.noTakebackAt = this.ply;
+      this.takebackOffer = null;
+      this.changed(now);
+      return;
+    }
+    if (this.takebackOffer === opposite(color)) return this.undo(opposite(color), now);
+    if (this.takebackOffer || !this.canTakeback(color)) return;
+    this.takebackOffer = color;
     this.changed(now);
   }
 
@@ -246,6 +281,21 @@ export class Game {
 
   // ─── Interno ───────────────────────────────────────────────────────
 
+  /** Deshace hasta que vuelva a ser el turno de quien lo pidió. No devuelve tiempo. */
+  private undo(requester: Color, now: number) {
+    if (this.clockRunning) this.clock[this.turn] = this.remaining(this.turn, now);
+    const n = this.turn === requester ? 2 : 1;
+    for (let i = 0; i < n; i++) {
+      this.chess.undo();
+      this.moves.pop();
+      this.sans.pop();
+    }
+    this.turnStart = now;
+    this.takebackOffer = null;
+    this.drawOffer = null;
+    this.changed(now);
+  }
+
   private flag(color: Color, now: number) {
     this.clock[color] = 0;
     const other = opposite(color);
@@ -262,6 +312,7 @@ export class Game {
     this.status = status;
     this.winner = winner;
     this.drawOffer = null;
+    this.takebackOffer = null;
     this.endedAt = now;
     this.changed(now);
   }
@@ -294,6 +345,7 @@ export class Game {
         black: { taken: !!this.seats.black, online: online.black }
       },
       drawOffer: this.drawOffer,
+      takeback: this.takebackOffer,
       rematch: [...this.rematch],
       firstMoveDeadline:
         this.status === 'started' && this.ply < 2
@@ -313,6 +365,8 @@ export class Game {
       status: this.status,
       winner: this.winner,
       drawOffer: this.drawOffer,
+      takeback: this.takebackOffer,
+      noTakebackAt: this.noTakebackAt,
       rematch: [...this.rematch],
       next: this.next,
       clock: { ...this.clock },
@@ -348,6 +402,8 @@ export class Game {
     this.status = data.status;
     this.winner = data.winner;
     this.drawOffer = data.drawOffer;
+    this.takebackOffer = data.takeback ?? null;
+    this.noTakebackAt = data.noTakebackAt ?? null;
     this.next = data.next;
     this.clock = { ...data.clock };
     this.turnStart = data.turnStart;
