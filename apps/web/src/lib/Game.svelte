@@ -92,6 +92,12 @@
   const over = $derived(!!game && isOver(game.status));
   const shownTurn = $derived<Color>(shownPly % 2 === 0 ? 'white' : 'black');
 
+  /** Segundos que le quedan al jugador con el turno para su primera jugada, o null. */
+  const firstMoveSec = $derived(
+    game?.status === 'started' && game.firstMoveDeadline !== null
+      ? Math.max(0, Math.ceil((game.firstMoveDeadline - (now - receivedAt)) / 1000))
+      : null
+  );
   /** Mismo criterio que el motor (el bloqueo tras un rechazo lo decide el servidor). */
   const canTakeback = $derived(
     !!game &&
@@ -282,7 +288,17 @@
     // Mantener visible la jugada activa en la lista.
     void shownPly;
     tick().then(() => {
-      movesEl?.querySelector('.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const list = movesEl;
+      const el = list?.querySelector<HTMLElement>('.active');
+      if (!list || !el) return;
+      // Solo se desplaza la lista: scrollIntoView movería también la página en el móvil,
+      // donde la lista queda por debajo de la pantalla.
+      const box = list.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      if (r.left < box.left) list.scrollLeft -= box.left - r.left;
+      else if (r.right > box.right) list.scrollLeft += r.right - box.right;
+      if (r.top < box.top) list.scrollTop -= box.top - r.top;
+      else if (r.bottom > box.bottom) list.scrollTop += r.bottom - box.bottom;
     });
   });
 
@@ -357,11 +373,6 @@
       </span>
     </div>
     <div class="clock" aria-label="Reloj de {colorName(c).toLowerCase()}">{formatClock(ms)}</div>
-    {#if game?.firstMoveDeadline && game.turn === c && game.status === 'started'}
-      <div class="deadline">
-        {Math.ceil((game.firstMoveDeadline - (now - receivedAt)) / 1000)} s para la primera jugada
-      </div>
-    {/if}
   </div>
 {/snippet}
 
@@ -472,6 +483,14 @@
           </div>
         {/if}
       {:else if game.status === 'started' && you}
+        <!-- Aquí y no en la barra del jugador: al aparecer y desaparecer, movía el tablero. -->
+        {#if firstMoveSec !== null}
+          <p class="deadline" role="status">
+            {game.turn === you
+              ? `Tienes ${firstMoveSec} s para tu primera jugada`
+              : `Tu rival tiene ${firstMoveSec} s para su primera jugada`}
+          </p>
+        {/if}
         {#if game.drawOffer && game.drawOffer !== you}
           <div class="offer">
             <span>Tu rival ofrece tablas</span>
@@ -502,9 +521,12 @@
             <button
               class="btn"
               disabled={game.drawOffer === you}
+              aria-label={game.drawOffer === you ? 'Tablas ofrecidas' : 'Ofrecer tablas'}
               onclick={() => send({ t: 'draw', offer: true })}
             >
-              {game.drawOffer === you ? 'Tablas ofrecidas' : 'Ofrecer tablas'}
+              <!-- En móviles estrechos, la etiqueta corta, para que los tres botones quepan en una fila. -->
+              <span class="label-long">{game.drawOffer === you ? 'Tablas ofrecidas' : 'Ofrecer tablas'}</span>
+              <span class="label-short">{game.drawOffer === you ? 'Ofrecidas' : 'Tablas'}</span>
             </button>
             {#if confirmResign}
               <button class="btn danger" onclick={() => send({ t: 'resign' })}>Confirmar abandono</button>
@@ -581,6 +603,14 @@
   .area-board {
     grid-area: board;
     position: relative;
+    /*
+     * En el móvil, el tablero mide lo que quepa para que las dos barras, el tablero
+     * y la fila de botones se vean sin scroll (240 px ≈ cabecera, barras, botones y
+     * huecos). dvh descuenta las barras del navegador; vh es la alternativa.
+     */
+    width: min(100%, max(260px, calc(100vh - 240px)));
+    width: min(100%, max(260px, calc(100dvh - 240px)));
+    justify-self: center;
   }
   .area-bottom {
     grid-area: bottom;
@@ -611,6 +641,8 @@
     }
     .area-board {
       align-self: start;
+      width: auto;
+      justify-self: stretch;
     }
     .area-moves {
       align-self: stretch;
@@ -725,9 +757,8 @@
     box-shadow: none;
   }
   .deadline {
-    grid-column: 1 / -1;
-    margin-top: 4px;
-    font-size: 0.85rem;
+    margin: 0 0 8px;
+    font-size: 0.9rem;
     color: var(--brass);
     font-weight: 600;
   }
@@ -861,6 +892,23 @@
   }
   .row > :global(*) {
     flex: 1 1 auto;
+  }
+  .label-short {
+    display: none;
+  }
+  /* Móviles estrechos: los tres botones de la partida caben en una fila. */
+  @media (max-width: 400px) {
+    .row > :global(.btn) {
+      padding: 0 10px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    .label-long {
+      display: none;
+    }
+    .label-short {
+      display: inline;
+    }
   }
   .wide {
     width: 100%;
@@ -1000,4 +1048,58 @@
   .loading {
     color: var(--muted);
   }
+  /*
+   * Móvil en horizontal (también los grandes, de más de 800 px de ancho): tablero a la
+   * izquierda con todo el alto; lo demás, a su derecha. Va al final para ganar a las
+   * reglas de escritorio.
+   */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .game {
+      grid-template-columns: minmax(0, calc(100vh - 56px)) minmax(0, 1fr);
+      grid-template-columns: minmax(0, calc(100dvh - 56px)) minmax(0, 1fr);
+      grid-template-rows: auto auto auto 1fr;
+      grid-template-areas:
+        'board top'
+        'board bottom'
+        'board controls'
+        'board moves';
+      column-gap: 12px;
+      row-gap: 8px;
+      padding: 4px 8px;
+      align-items: start;
+    }
+    .area-board {
+      width: auto;
+      justify-self: stretch;
+    }
+    .area-controls {
+      padding: 0;
+    }
+    /* La lista, en una línea como en el móvil, aunque la pantalla pase de 800 px. */
+    .area-moves {
+      display: block;
+      background: none;
+      border: 0;
+    }
+    .nav {
+      padding: 0;
+      border: 0;
+    }
+    .moves {
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-height: none;
+      min-height: 0;
+      padding: 4px 0;
+      gap: 4px 10px;
+    }
+    .moves li,
+    .moves li:nth-child(even) {
+      display: flex;
+      padding: 0;
+      background: none;
+    }
+  }
+
 </style>
