@@ -222,9 +222,14 @@ export class Game {
     );
   }
 
-  /** Pedir (o aceptar) deshacer la última jugada propia; `offer: false` retira o rechaza. */
-  takeback(color: Color, offer: boolean, now: number) {
+  /**
+   * Pedir (o aceptar) deshacer la última jugada propia; `offer: false` retira o rechaza.
+   * Con `ply`, como en `move`, un mensaje de otra posición se ignora: así una aceptación
+   * que llega tras una jugada no se convierte en una petición nueva.
+   */
+  takeback(color: Color, offer: boolean, ply: number | undefined, now: number) {
     if (this.status !== 'started') return;
+    if (ply !== undefined && ply !== this.ply) return;
     if (!offer) {
       if (!this.takebackOffer) return;
       // Rechazar la del rival impide pedirla otra vez hasta la siguiente jugada.

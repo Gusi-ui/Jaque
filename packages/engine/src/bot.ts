@@ -267,7 +267,9 @@ export function planBot(view: GameView, me: Color | null): BotPlan {
   const pos = Chess.fromSetup(parseFen(view.fen).unwrap()).unwrap();
   const myScore = (me === 'white' ? 1 : -1) * evaluate(pos);
   // Contra la máquina se puede deshacer siempre: acepta al momento.
-  if (view.takeback === rival) return { send: [{ t: 'takeback', offer: true }], think: false };
+  if (view.takeback === rival) {
+    return { send: [{ t: 'takeback', offer: true, ply: view.moves.length }], think: false };
+  }
   const send: ClientGameMsg[] = [];
   if (view.drawOffer === rival) {
     // Acepta tablas si no va ganando; si va ganando, las rechaza.

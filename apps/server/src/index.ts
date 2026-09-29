@@ -139,7 +139,7 @@ function onGameMessage(ws: Socket, data: GameSocketData, game: Game, msg: Client
     case 'draw':
       return game.draw(color, !!msg.offer);
     case 'takeback':
-      return game.takeback(color, !!msg.offer);
+      return game.takeback(color, !!msg.offer, msg.ply === undefined ? undefined : Number(msg.ply));
     case 'rematch':
       return store.rematch(game, color, !!msg.offer);
   }

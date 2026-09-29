@@ -89,8 +89,8 @@ test('política: acepta siempre deshacer y nunca lo pide', () => {
   g.join('human-player-00000', 'white', 0);
   g.join('bot-player-0000000', 'black', 0);
   for (const [i, m] of ['e2e4', 'e7e5', 'g1f3'].entries()) g.move(i % 2 ? 'black' : 'white', m, i, 0);
-  g.takeback('white', true, 0);
-  assert.deepEqual(planBot(view(g), 'black'), { send: [{ t: 'takeback', offer: true }], think: false });
-  g.takeback('black', true, 0);
+  g.takeback('white', true, undefined, 0);
+  assert.deepEqual(planBot(view(g), 'black'), { send: [{ t: 'takeback', offer: true, ply: 3 }], think: false });
+  g.takeback('black', true, undefined, 0);
   assert.deepEqual(planBot(view(g), 'black').send, []);
 });

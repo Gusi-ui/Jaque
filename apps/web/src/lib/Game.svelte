@@ -92,7 +92,12 @@
 
   /** Mismo criterio que el motor (el bloqueo tras un rechazo lo decide el servidor). */
   const canTakeback = $derived(
-    !!game && !!you && game.status === 'started' && lastPly >= (you === 'white' ? 1 : 2)
+    !!game &&
+      !!you &&
+      game.status === 'started' &&
+      lastPly >= (you === 'white' ? 1 : 2) &&
+      // Con la petición del rival pendiente, se responde en su aviso: pedir aquí la aceptaría.
+      game.takeback !== opposite(you)
   );
   const canAbort = $derived(
     !!game &&
@@ -466,8 +471,8 @@
         {#if game.takeback && game.takeback !== you}
           <div class="offer">
             <span>Tu rival pide deshacer su última jugada</span>
-            <button class="btn primary" onclick={() => send({ t: 'takeback', offer: true })}>Aceptar</button>
-            <button class="btn" onclick={() => send({ t: 'takeback', offer: false })}>Rechazar</button>
+            <button class="btn primary" onclick={() => send({ t: 'takeback', offer: true, ply: lastPly })}>Aceptar</button>
+            <button class="btn" onclick={() => send({ t: 'takeback', offer: false, ply: lastPly })}>Rechazar</button>
           </div>
         {/if}
         <div class="row">
@@ -478,7 +483,7 @@
               <button
                 class="btn"
                 aria-pressed={game.takeback === you}
-                onclick={() => send({ t: 'takeback', offer: game?.takeback !== you })}
+                onclick={() => send({ t: 'takeback', offer: game?.takeback !== you, ply: lastPly })}
               >
                 {game.takeback === you ? 'Deshacer pedido' : 'Deshacer'}
               </button>

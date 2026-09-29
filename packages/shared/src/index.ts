@@ -128,7 +128,7 @@ export type ClientGameMsg =
   | { t: 'resign' }
   | { t: 'abort' }
   | { t: 'draw'; offer: boolean }
-  | { t: 'takeback'; offer: boolean }
+  | { t: 'takeback'; offer: boolean; ply?: number }
   | { t: 'rematch'; offer: boolean }
   | { t: 'ping' };
 
