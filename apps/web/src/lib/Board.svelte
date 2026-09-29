@@ -3,6 +3,7 @@
   import { Chessground } from 'chessground';
   import type { Api } from 'chessground/api';
   import type { Config } from 'chessground/config';
+  import type { DrawShape } from 'chessground/draw';
   import type { Dests, Key, MoveMetadata } from 'chessground/types';
   import 'chessground/assets/chessground.base.css';
   import 'chessground/assets/chessground.cburnett.css';
@@ -18,9 +19,11 @@
     lastMove?: [Key, Key];
     check: boolean;
     onmove?: (orig: Key, dest: Key, meta: MoveMetadata) => void;
+    /** Marcas fijas sobre el tablero (la pista del problema del día). */
+    shapes?: DrawShape[];
   }
 
-  let { fen, orientation, turnColor, movableColor, dests, lastMove, check, onmove }: Props = $props();
+  let { fen, orientation, turnColor, movableColor, dests, lastMove, check, onmove, shapes = [] }: Props = $props();
 
   let el: HTMLDivElement;
   let cg: Api | undefined;
@@ -38,7 +41,8 @@
       dests: movableColor === turnColor ? dests : new Map()
     },
     premovable: { enabled: !!movableColor },
-    draggable: { enabled: !!movableColor }
+    draggable: { enabled: !!movableColor },
+    drawable: { autoShapes: shapes }
   });
 
   onMount(() => {
@@ -53,7 +57,7 @@
         events: { after: (o, d, m) => onmove?.(o, d, m) }
       },
       premovable: { enabled: !!movableColor, showDests: true, castle: true },
-      drawable: { enabled: true }
+      drawable: { ...config().drawable, enabled: true }
     });
     return () => cg?.destroy();
   });
@@ -72,8 +76,12 @@
     return cg?.playPremove() ?? false;
   }
 
+  /**
+   * Deshace en el tablero una jugada que no se aceptó. Hay que restaurar todo,
+   * no solo la posición: al mover, chessground cambia el turno y vacía los destinos.
+   */
   export function cancelMove() {
-    cg?.set({ fen, lastMove });
+    cg?.set(config());
   }
 </script>
 
