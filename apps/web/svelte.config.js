@@ -8,6 +8,9 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 export default {
   preprocess: vitePreprocess(),
   kit: {
-    adapter: adapter({ fallback: '200.html', precompress: true })
+    adapter: adapter({ fallback: '200.html', precompress: true }),
+    // Tras un despliegue, los archivos de la versión anterior dejan de existir.
+    // Se comprueba cada minuto si hay una versión nueva (ver +layout.svelte).
+    version: { pollInterval: 60_000 }
   }
 };
