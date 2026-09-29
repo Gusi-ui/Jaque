@@ -83,6 +83,10 @@
   export function cancelMove() {
     cg?.set(config());
   }
+
+  export function cancelPremove() {
+    cg?.cancelPremove();
+  }
 </script>
 
 <div class="board-wrap">
