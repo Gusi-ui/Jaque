@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./bot": "./src/bot.ts",
-    "./levels": "./src/levels.ts"
+    "./levels": "./src/levels.ts",
+    "./puzzle": "./src/puzzle.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",
