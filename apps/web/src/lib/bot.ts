@@ -38,9 +38,14 @@ export function startBot(gameId: string, cfg: BotConfig) {
   });
 
   function act(v: GameView) {
+    // Se ha deshecho una jugada: lo pensado ya no vale.
+    if (v.moves.length < thinkingAt) {
+      thinkingAt = -1;
+      clearTimeout(moveTimer);
+    }
     const plan = planBot(v, you);
     // Cada decisión se envía una sola vez por estado de la partida.
-    const sig = JSON.stringify([v.status, v.moves.length, v.drawOffer, v.rematch, you, plan.send]);
+    const sig = JSON.stringify([v.status, v.moves.join(), v.drawOffer, v.takeback, v.rematch, you, plan.send]);
     if (plan.send.length && sig !== lastSent) {
       lastSent = sig;
       for (const m of plan.send) socket.send(m);
@@ -63,8 +68,8 @@ export function startBot(gameId: string, cfg: BotConfig) {
       if (id !== request || !uci) return;
       const wait = Math.max(0, delay - (Date.now() - started));
       moveTimer = setTimeout(() => {
-        // Solo si la partida sigue en la misma posición.
-        if (view?.status === 'started' && view.moves.length === req.moves.length) {
+        // Solo si la partida sigue en la misma posición (tras deshacer, el número de jugadas puede coincidir).
+        if (view?.status === 'started' && view.moves.join() === req.moves.join()) {
           socket.send({ t: 'move', uci, ply: req.moves.length });
         }
       }, wait);
