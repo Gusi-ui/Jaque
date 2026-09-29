@@ -109,8 +109,12 @@ export class PuzzleRun {
   uci(orig: string, dest: string): string {
     const expected = this.puzzle.solution[this.ply];
     if (expected?.startsWith(orig + dest)) return expected;
-    const piece = this.chess.get(orig as Square);
-    return piece?.type === 'p' && (dest[1] === '8' || dest[1] === '1') ? `${orig}${dest}q` : orig + dest;
+    return this.isPromotion(orig, dest) ? `${orig}${dest}q` : orig + dest;
+  }
+
+  /** Si la jugada lleva un peón a la última fila: hay que elegir pieza. */
+  isPromotion(orig: string, dest: string): boolean {
+    return this.chess.get(orig as Square)?.type === 'p' && (dest[1] === '8' || dest[1] === '1');
   }
 
   play(uci: string): PlayResult {
