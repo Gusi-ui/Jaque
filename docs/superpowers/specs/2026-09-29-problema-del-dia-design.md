@@ -26,11 +26,9 @@ Fuera de alcance: contador de cuánta gente lo ha resuelto, rachas, página prop
 - **Origen:** base de problemas abierta de lichess (`lichess_db_puzzle.csv.zst`,
   licencia CC0). CC0 no exige atribución: la página no menciona la fuente.
 - **Script** `packages/engine/scripts/build-puzzles.ts` (script `puzzles` del
-  paquete): lee el CSV por la entrada estándar y escribe
-  `packages/engine/src/puzzles.json`. Se ejecuta a mano y el JSON se sube al repo:
-  ```
-  curl -L https://database.lichess.org/lichess_db_puzzle.csv.zst | zstd -d | pnpm --filter @jaque/engine puzzles
-  ```
+  paquete): descarga la base, la descomprime con `zlib.createZstdDecompress` de
+  Node 22 y escribe `packages/engine/src/puzzles.json`. Se ejecuta a mano
+  (`pnpm --filter @jaque/engine puzzles`) y el JSON se sube al repo.
 - **Columnas usadas:** `PuzzleId, FEN, Moves, Rating, RatingDeviation, Popularity,
   NbPlays, Themes`. En el CSV la primera jugada de `Moves` es la del rival: el script
   la aplica, y guarda el FEN resultante y el resto de jugadas (la solución).
@@ -64,11 +62,12 @@ Módulo puro `packages/engine/src/puzzle.ts`, exportado como `@jaque/engine/puzz
   fecha → grupo; índice = semanas desde una fecha fija (lunes 2026-01-05) `mod` tamaño
   del grupo. Devuelve `{ key, id, fen, solution: string[], goal: 1 | 2 | 3 }`.
 - `class PuzzleRun` sobre chess.js:
-  - `play(uci)` → `'wrong'`, `{ reply: string }` (acierto; jugada del rival ya
-    aplicada) o `'solved'`.
+  - `play(uci)` → `'wrong'`, `{ reply: string }` (acierto; la jugada del rival se
+    aplica después con `step()`) o `'solved'`.
   - Cualquier jugada que dé mate cuenta como resuelto, sea o no la de la solución.
   - Las coronaciones se comparan con la pieza incluida.
-  - `hint()` → casilla de la pieza que hay que mover; `rest()` → jugadas que quedan.
+  - `hint()` → casilla de la pieza que hay que mover; `step()` juega la siguiente
+    jugada de la solución (contestación del rival y «Ver solución»).
   - `fen`, `turn`, `dests` para el tablero.
 
 ### 3. Interfaz en la portada
@@ -77,7 +76,7 @@ Módulo puro `packages/engine/src/puzzle.ts`, exportado como `@jaque/engine/puzz
 «Juega al ajedrez en segundos». Reutiliza `Board.svelte`.
 
 - **Título** «Problema del día»; línea «Juegan blancas · Mate en 2».
-- **Disposición:** escritorio, tablero ≈300 px a la izquierda y texto a la derecha;
+- **Disposición:** escritorio, tablero de 240 px (la columna mide 520 px) a la izquierda y texto a la derecha;
   móvil, tablero a todo el ancho (máx. ≈360 px) y texto debajo. Mientras carga el JSON
   se reserva el hueco del tablero (sin saltos de maquetación).
 - **Tablero** orientado al bando que mueve; solo se mueven sus piezas.
