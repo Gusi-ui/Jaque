@@ -14,9 +14,9 @@ services:
     networks:
       web:
         aliases: [ajedrez-server]
-    cpus: 0.4
-    mem_limit: 1536m
-    memswap_limit: 1536m
+    cpus: 0.5
+    mem_limit: 1g
+    memswap_limit: 1g
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
@@ -30,9 +30,9 @@ services:
     networks:
       web:
         aliases: [ajedrez-static]
-    cpus: 0.1
-    mem_limit: 256m
-    memswap_limit: 256m
+    cpus: 0.15
+    mem_limit: 128m
+    memswap_limit: 128m
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
       interval: 30s
