@@ -13,7 +13,7 @@ import {
   type ServerGameMsg,
   type ServerLobbyMsg
 } from '@jaque/shared';
-import { GameStore } from './store.js';
+import { GameStore, FULL_MSG, type StoreLimits } from './store.js';
 import type { Game } from './game.js';
 
 // El envoltorio ESM de uWebSockets.js apunta a un archivo inexistente; se carga con require.
@@ -27,7 +27,23 @@ type LobbySocketData = { kind: 'lobby'; player: string; seek: string | null };
 type SocketData = GameSocketData | LobbySocketData;
 type Socket = U.WebSocket<SocketData>;
 
-const store = new GameStore();
+/** Entero positivo de una variable de entorno; si falta o no es válido, undefined (valor por defecto). */
+function envInt(name: string, scale = 1): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    console.warn(`${name}=${raw} no es un entero positivo: se usa el valor por defecto`);
+    return undefined;
+  }
+  return n * scale;
+}
+// MAX_GAMES (partidas en memoria) y KEEP_FINISHED_MIN (minutos que se conserva una terminada).
+const limits: Partial<StoreLimits> = {
+  maxGames: envInt('MAX_GAMES'),
+  keepFinishedMs: envInt('KEEP_FINISHED_MIN', 60_000)
+};
+const store = new GameStore(Object.fromEntries(Object.entries(limits).filter(([, v]) => v !== undefined)));
 const app = uWS.App();
 const enc = new TextDecoder();
 
@@ -93,7 +109,11 @@ function seek(ws: Socket, tcId: string) {
   them.seek = null;
   const [white, black] = Math.random() < 0.5 ? [me.player, them.player] : [them.player, me.player];
   const game = store.pair(preset, white, black);
-  if (!game) return send(ws, { t: 'error', msg: 'Servidor lleno, inténtalo en un momento' });
+  if (!game) {
+    // Los dos salieron de la cola: hay que avisar a ambos, no solo a quien llegó último.
+    send(ws, { t: 'error', msg: FULL_MSG });
+    return send(rival, { t: 'error', msg: FULL_MSG });
+  }
   send(ws, { t: 'start', id: game.id });
   send(rival, { t: 'start', id: game.id });
 }
@@ -141,7 +161,10 @@ function onGameMessage(ws: Socket, data: GameSocketData, game: Game, msg: Client
     case 'takeback':
       return game.takeback(color, !!msg.offer, msg.ply === undefined ? undefined : Number(msg.ply));
     case 'rematch':
-      return store.rematch(game, color, !!msg.offer);
+      if (!store.rematch(game, color, !!msg.offer)) {
+        app.publish(gameTopic(game.id), JSON.stringify({ t: 'error', msg: FULL_MSG }));
+      }
+      return;
   }
 }
 
@@ -275,7 +298,7 @@ app.post('/api/games', (res) => {
       return json(res, '400 Bad Request', { error: 'Datos no válidos' });
     }
     const game = store.create({ initial: body.tc.initial, increment: body.tc.increment });
-    if (!game) return json(res, '503 Service Unavailable', { error: 'Servidor lleno' });
+    if (!game) return json(res, '503 Service Unavailable', { error: FULL_MSG });
     const color: Color =
       body.color === 'white' || body.color === 'black'
         ? body.color
