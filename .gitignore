@@ -6,3 +6,5 @@ build/
 deploy/certs/*
 !deploy/certs/.gitkeep
 *.log
+deploy/caddy/certs/*
+!deploy/caddy/certs/.gitkeep
