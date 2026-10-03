@@ -44,7 +44,7 @@ apps/worker/         Versión Cloudflare: Worker + Durable Objects + D1 (mismo p
   src/game-room.ts   Durable Object de una partida (WebSockets con hibernación, alarmas)
   src/lobby.ts       Durable Object del lobby (emparejamiento y estadísticas)
   migrations/        Esquema de D1 (historial de partidas)
-deploy/              Caddyfile, Dockerfile del frontend y certificados
+deploy/              Caddyfile, Dockerfiles del frontend, Caddy compartido (caddy/) y certificados
 docker-compose.yml
 ```
 
@@ -83,6 +83,8 @@ Las dos ramas están protegidas (no se pueden borrar ni forzar).
 El `player` es un identificador anónimo que el navegador genera y guarda en `localStorage`.
 
 ## Despliegue en Oracle Cloud + Cloudflare
+
+> Para el montaje actual con Caddy compartido (varios juegos en un mismo servidor, solo el 443 abierto a los rangos de Cloudflare), sigue [`docs/despliegue-vps.md`](docs/despliegue-vps.md). Lo de abajo es la variante «todo en uno» con `docker-compose.yml`.
 
 ### 1. Oracle Cloud
 

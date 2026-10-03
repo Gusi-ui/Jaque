@@ -28,3 +28,22 @@ jobs:
       - run: pnpm build
       - name: Extremo a extremo contra wrangler dev
         run: pnpm --filter @jaque/worker run test:e2e
+
+  # La imagen Docker del VPS: comprueba que arranca en amd64 (uWebSockets.js necesita
+  # glibc >= 2.38, por eso la base es trixie). Job aparte: no forma parte del check "CI".
+  docker-server:
+    name: Imagen del servidor (amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f apps/server/Dockerfile -t ajedrez-server .
+      - name: Arranca y responde /api/health
+        run: |
+          docker run -d --name srv -p 3001:3001 ajedrez-server
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:3001/api/health && exit 0
+            sleep 1
+          done
+          docker logs srv
+          exit 1
