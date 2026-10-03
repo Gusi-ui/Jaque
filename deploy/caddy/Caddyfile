@@ -2,6 +2,9 @@
 #   TLS_MODE → "origin"   certificado de origen (comodín) en /etc/caddy/certs (producción)
 #              "internal" certificado autofirmado (pruebas locales sin Cloudflare)
 {
+	# El 80 no se publica: sin redirecciones HTTP→HTTPS que nadie va a recibir.
+	auto_https disable_redirects
+
 	servers {
 		# La IP real del jugador llega en Cf-Connecting-Ip; solo nos fiamos de Cloudflare.
 		# Lista actualizada en https://www.cloudflare.com/ips/

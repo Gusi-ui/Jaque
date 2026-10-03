@@ -1,4 +1,5 @@
-# Caddy compartido: ÚNICO servicio que publica 80/443 en el VPS.
+# Caddy compartido: ÚNICO servicio que publica puertos en el VPS (solo el 443).
+# Cloudflare (proxy + certificado de origen) conecta siempre por HTTPS: el 80 no se publica.
 # Cada juego es otro proyecto compose en la red externa "web" y aporta su bloque en sites/.
 #   docker compose up -d
 # Añadir o cambiar un sitio, sin cortar conexiones (nunca reiniciar el contenedor):
@@ -9,7 +10,6 @@ services:
     container_name: caddy
     restart: unless-stopped
     ports:
-      - "80:80"
       - "443:443"
     environment:
       # origin = certificado de origen de Cloudflare · internal = autofirmado (pruebas)
