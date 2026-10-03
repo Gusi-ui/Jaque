@@ -1,0 +1,21 @@
+# Ajedrez (docker-compose.vps.yml en la raíz del repo)
+vps.damejaque.online {
+	import tls_{$TLS_MODE:origin}
+	import seguridad
+
+	# API y WebSockets directos al servidor de partidas (sin segundo proxy).
+	handle /api/* {
+		reverse_proxy ajedrez-server:3001
+	}
+	handle /ws/* {
+		reverse_proxy ajedrez-server:3001 {
+			# No cortar los WebSockets abiertos al recargar la configuración.
+			stream_close_delay 1h
+		}
+	}
+
+	# El resto es el SPA estático.
+	handle {
+		reverse_proxy ajedrez-static:8080
+	}
+}

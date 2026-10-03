@@ -1,0 +1,43 @@
+# Caddy compartido: ÚNICO servicio que publica 80/443 en el VPS.
+# Cada juego es otro proyecto compose en la red externa "web" y aporta su bloque en sites/.
+#   docker compose up -d
+# Añadir o cambiar un sitio, sin cortar conexiones (nunca reiniciar el contenedor):
+#   docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # origin = certificado de origen de Cloudflare · internal = autofirmado (pruebas)
+      TLS_MODE: ${TLS_MODE:-origin}
+      GOMEMLIMIT: 200MiB
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [web]
+    cpus: 0.25
+    mem_limit: 256m
+    memswap_limit: 256m
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  web:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:
