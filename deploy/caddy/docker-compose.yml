@@ -1,9 +1,11 @@
 # Caddy compartido: ÚNICO servicio que publica puertos en el VPS (solo el 443).
 # Cloudflare (proxy + certificado de origen) conecta siempre por HTTPS: el 80 no se publica.
-# Cada juego es otro proyecto compose en la red externa "web" y aporta su bloque en sites/.
+# Cada juego es otro proyecto compose en la red externa "web" y aporta su bloque en conf/sites/.
 #   docker compose up -d
 # Añadir o cambiar un sitio, sin cortar conexiones (nunca reiniciar el contenedor):
-#   docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+#   docker exec caddy caddy reload --config /etc/caddy/conf/Caddyfile
+# conf/ se monta como DIRECTORIO a propósito: un fichero montado suelto deja de verse
+# si se edita con `sed -i` o con un editor (crean otro inode) y el reload no cambia nada.
 services:
   caddy:
     image: caddy:2-alpine
@@ -15,9 +17,9 @@ services:
       # origin = certificado de origen de Cloudflare · internal = autofirmado (pruebas)
       TLS_MODE: ${TLS_MODE:-origin}
       GOMEMLIMIT: 200MiB
+    command: caddy run --config /etc/caddy/conf/Caddyfile --adapter caddyfile
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./sites:/etc/caddy/sites:ro
+      - ./conf:/etc/caddy/conf:ro
       - ./certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
@@ -26,7 +28,7 @@ services:
     mem_limit: 256m
     memswap_limit: 256m
     healthcheck:
-      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/conf/Caddyfile", "--adapter", "caddyfile"]
       interval: 60s
       timeout: 10s
       retries: 3
