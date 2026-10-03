@@ -27,10 +27,10 @@ Internet → Cloudflare (proxy, TLS) → :443 → Caddy compartido ──┬─ 
 | Contenedor | CPU | RAM |
 |---|---|---|
 | `caddy` | 0,25 | 256 MB |
-| `ajedrez-server` | 0,4 | 1,5 GB |
-| `ajedrez-static` | 0,1 | 256 MB |
+| `ajedrez-server` | 0,5 | 1 GB |
+| `ajedrez-static` | 0,15 | 128 MB |
 
-`memswap_limit` es igual a `mem_limit` (sin swap). Se ajustan con `docker stats` y una prueba de carga.
+`memswap_limit` es igual a `mem_limit` (sin swap). Ajustados tras una prueba de carga con 50 y 100 partidas simultáneas (pico del 15 % del límite de CPU y ~40 MiB de RAM en el servidor de partidas, con holgura). Vuelve a medir con tráfico real.
 
 ## Requisitos del servidor
 
