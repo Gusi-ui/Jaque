@@ -11,6 +11,8 @@ services:
     environment:
       PORT: 3001
       HOST: 0.0.0.0
+      # Tope de partidas en memoria (por defecto 50000, demasiado para 1 GB de RAM).
+      MAX_GAMES: 3000
     networks:
       web:
         aliases: [ajedrez-server]

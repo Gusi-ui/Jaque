@@ -32,6 +32,15 @@ Internet → Cloudflare (proxy, TLS) → :443 → Caddy compartido ──┬─ 
 
 `memswap_limit` es igual a `mem_limit` (sin swap). Se ajustan con `docker stats` y una prueba de carga.
 
+### Variables del servidor de partidas
+
+| Variable | Por defecto | Para qué |
+|---|---|---|
+| `MAX_GAMES` | 50000 | Tope de partidas en memoria. Al alcanzarlo, crear partida responde 503 y el emparejamiento rápido y la revancha avisan con «Servidor lleno, inténtalo en un momento». En el VPS se fija en **3000** (1 GB de RAM). |
+| `KEEP_FINISHED_MIN` | 60 | Minutos que se conserva una partida terminada (para verla) antes de borrarla, siempre que no haya nadie conectado. |
+
+Una variable que no sea un entero positivo se ignora con un aviso en el registro. Las partidas en espera caducan a las 3 h sin actividad.
+
 ## Requisitos del servidor
 
 - Ubuntu con Docker CE y Compose, y la red externa: `docker network create web`.
