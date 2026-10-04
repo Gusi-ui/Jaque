@@ -3,6 +3,17 @@ vps.damejaque.online {
 	import tls_{$TLS_MODE:origin}
 	import seguridad
 
+	# Copia de pruebas y plan B: la producción es damejaque.online.
+	# Que los buscadores no la indexen.
+	header X-Robots-Tag "noindex, nofollow"
+	handle /robots.txt {
+		header Content-Type "text/plain; charset=utf-8"
+		respond <<TXT
+			User-agent: *
+			Disallow: /
+			TXT 200
+	}
+
 	# API y WebSockets directos al servidor de partidas (sin segundo proxy).
 	handle /api/* {
 		reverse_proxy ajedrez-server:3001
