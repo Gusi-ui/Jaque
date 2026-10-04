@@ -153,3 +153,7 @@ docker logs --since 10m caddy
 ```
 
 La IP real del jugador llega en `Cf-Connecting-Ip`; Caddy solo se fía de ella si la conexión viene de un rango de Cloudflare (`trusted_proxies`), y la registra como `client_ip`. Para verla hay que subir temporalmente el `log` del snippet `seguridad` de `WARN` a `INFO` y recargar.
+
+## No indexación
+
+La copia del VPS es solo de pruebas y plan B (la producción es la de Cloudflare Workers). Su sitio de Caddy (`deploy/caddy/conf/sites/ajedrez.caddy`) envía `X-Robots-Tag: noindex, nofollow` y sirve un `robots.txt` con `Disallow: /`. Se aplica con `caddy reload`, sin reiniciar el contenedor. Si Cloudflare tiene en caché un `robots.txt` antiguo, purga solo esa URL desde el panel.
