@@ -51,7 +51,7 @@ jobs:
   # Caddy compartido del VPS: la configuración es válida y el registro general (errores) no guarda la IP del visitante
   # ni la clave ?k= de las URL. Job aparte: no forma parte del check "CI".
   caddy:
-    name: Caddy compartido (sintaxis y registro sin IP)
+    name: Caddy compartido (sintaxis y registros sin IP)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -64,9 +64,10 @@ jobs:
         run: |
           mkdir -p t/sites
           cp deploy/caddy/conf/Caddyfile t/Caddyfile
-          # Un sitio de prueba sin registro de acceso propio: lo que salga es del registro general.
-          printf 'http://:8080 {\n\treverse_proxy 127.0.0.1:9\n}\n' > t/sites/prueba.caddy
-          docker run -d --name cad -p 8080:8080 -v "$PWD/t:/etc/caddy/conf:ro" caddy:2.11.6-alpine \
+          # Un sitio de prueba sin registro de acceso propio (lo que salga es del registro general) y otro con el
+          # fragmento «seguridad», como el ajedrez (su registro de acceso).
+          printf 'http://:8080 {\n\treverse_proxy 127.0.0.1:9\n}\nhttp://:8081 {\n\timport seguridad\n\treverse_proxy 127.0.0.1:9\n}\n' > t/sites/prueba.caddy
+          docker run -d --name cad -p 8080:8080 -p 8081:8081 -v "$PWD/t:/etc/caddy/conf:ro" caddy:2.11.6-alpine \
             caddy run --config /etc/caddy/conf/Caddyfile --adapter caddyfile
           for i in $(seq 1 20); do
             code=$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/ws/game?k=claveSecretaCi01' || true)
@@ -74,10 +75,13 @@ jobs:
             sleep 1
           done
           test "$code" = 502
+          test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8081/partida?x=1')" = 502
           sleep 1
           docker logs cad > caddy.log 2>&1
           grep -q 'http.log.error' caddy.log || { cat caddy.log; echo "el error no llegó al registro"; exit 1; }
           grep -q 'k=REDACTADA' caddy.log || { cat caddy.log; echo "la URL no aparece tapada"; exit 1; }
+          grep -q 'http.log.access' caddy.log || { cat caddy.log; echo "el registro de acceso con «seguridad» no escribió el 502"; exit 1; }
+          grep -q '/partida' caddy.log || { cat caddy.log; echo "falta la petición del sitio con «seguridad»"; exit 1; }
           if grep -q 'claveSecretaCi01' caddy.log; then cat caddy.log; echo "la clave está en el registro"; exit 1; fi
           if grep -Eq 'remote_ip|client_ip|remote_port' caddy.log; then cat caddy.log; echo "la IP está en el registro"; exit 1; fi
           docker rm -f cad

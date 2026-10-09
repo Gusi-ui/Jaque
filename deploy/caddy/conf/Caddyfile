@@ -52,9 +52,23 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+	# Registro de acceso (solo avisos y errores) sin la IP del visitante: los mismos campos que el registro general.
 	log {
 		output stdout
-		format console
+		format filter {
+			wrap console
+			fields {
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				request>headers>Cf-Connecting-Ip delete
+				request>headers>Cf-Connecting-Ipv6 delete
+				request>headers>Cf-Pseudo-Ipv4 delete
+				request>headers>X-Forwarded-For delete
+				request>headers>True-Client-Ip delete
+				request>headers>Cf-Ipcountry delete
+			}
+		}
 		level WARN
 	}
 }
