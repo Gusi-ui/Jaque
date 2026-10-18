@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { DrawShape } from 'chessground/draw';
   import type { Dests, Key } from 'chessground/types';
   import type { Color } from '@jaque/shared';
@@ -46,6 +46,9 @@
   let failed = $state(false);
   /** Coronación pendiente de elegir pieza. */
   let promo = $state<{ orig: Key; dest: Key } | null>(null);
+  /** En escritorio el problema se puede resolver en una ventana con el tablero grande. */
+  let big = $state(false);
+  let dialog = $state<HTMLDialogElement>();
   let touched = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let logic: typeof import('@jaque/engine/puzzle') | undefined;
@@ -98,6 +101,15 @@
     }
     puzzle = today;
     sync();
+  }
+
+  // Un solo tablero a la vez: al abrir la ventana, el pequeño deja su sitio al grande.
+  async function openBig() {
+    touch();
+    promo = null;
+    big = true;
+    await tick();
+    dialog?.showModal();
   }
 
   function newDay(returning: boolean) {
@@ -217,52 +229,102 @@
   }
 </script>
 
+{#snippet boardView()}
+  {#if Board && view}
+    <Board
+      bind:this={board}
+      fen={view.fen}
+      orientation={side}
+      turnColor={view.turn}
+      movableColor={result || busy || promo ? null : side}
+      dests={view.dests}
+      lastMove={view.lastMove}
+      check={view.check}
+      {shapes}
+      onmove={onMove}
+    />
+    {#if promo}
+      <PromotionPicker color={side} onchoose={choosePromotion} oncancel={cancelPromotion} />
+    {/if}
+  {:else}
+    <div class="board-slot" aria-hidden="true"></div>
+  {/if}
+{/snippet}
+
+{#snippet details(large: boolean)}
+  {#if puzzle}
+    <p class="puzzle-goal">
+      Juegan {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep"> · </span><span class="goal-n"
+        >Mate en {puzzle.goal}</span
+      >
+    </p>
+    <p class="puzzle-msg" role={large === big ? 'status' : undefined}>{message}</p>
+    <div class="puzzle-actions">
+      {#if !result}
+        <button class="btn" disabled={busy} onclick={showHint}>Pista</button>
+        <button class="btn" disabled={busy} onclick={showSolution}>Ver solución</button>
+      {/if}
+      {#if large}
+        <button class="btn" onclick={() => dialog?.close()}>Cerrar</button>
+      {/if}
+    </div>
+    {#if !large && Board && view && !result}
+      <span class="puzzle-cta" aria-hidden="true">Resolver →</span>
+    {/if}
+  {:else}
+    <p class="puzzle-goal">Cargando…</p>
+  {/if}
+{/snippet}
+
 {#if !failed}
   <section class="puzzle" aria-labelledby="puzzle-title">
     <h2 id="puzzle-title">Problema del día</h2>
     <div class="puzzle-body">
       <div class="puzzle-board">
-        {#if Board && view}
-          <Board
-            bind:this={board}
-            fen={view.fen}
-            orientation={side}
-            turnColor={view.turn}
-            movableColor={result || busy || promo ? null : side}
-            dests={view.dests}
-            lastMove={view.lastMove}
-            check={view.check}
-            {shapes}
-            onmove={onMove}
-          />
-          {#if promo}
-            <PromotionPicker color={side} onchoose={choosePromotion} oncancel={cancelPromotion} />
-          {/if}
-        {:else}
+        {#if big}
           <div class="board-slot" aria-hidden="true"></div>
+        {:else}
+          {@render boardView()}
         {/if}
       </div>
       <div class="puzzle-text">
-        {#if puzzle}
-          <p class="puzzle-goal">Juegan {side === 'white' ? 'blancas' : 'negras'} · Mate en {puzzle.goal}</p>
-          <p class="puzzle-msg" role="status">{message}</p>
-          {#if !result}
-            <div class="puzzle-actions">
-              <button class="btn" disabled={busy} onclick={showHint}>Pista</button>
-              <button class="btn" disabled={busy} onclick={showSolution}>Ver solución</button>
-            </div>
-          {/if}
-        {:else}
-          <p class="puzzle-goal">Cargando…</p>
-        {/if}
+        {@render details(false)}
       </div>
     </div>
+    <!-- En escritorio la tarjeta entera es una vista previa: se resuelve en grande. -->
+    {#if Board && view}
+      <button class="puzzle-open" onclick={openBig}>
+        <span class="sr-only">{result ? 'Ver el problema del día en grande' : 'Resolver el problema del día en grande'}</span>
+      </button>
+    {/if}
   </section>
+
+  <dialog
+    bind:this={dialog}
+    class="puzzle-dialog"
+    aria-labelledby="puzzle-dialog-title"
+    onclose={() => {
+      if (promo) cancelPromotion();
+      big = false;
+    }}
+    onclick={(e) => e.target === dialog && dialog.close()}
+  >
+    {#if big}
+      <div class="dialog-body">
+        <div class="puzzle-board">{@render boardView()}</div>
+        <div class="puzzle-text">
+          <h2 id="puzzle-dialog-title">Problema del día</h2>
+          {@render details(true)}
+        </div>
+      </div>
+    {/if}
+  </dialog>
 {/if}
 
 <style>
   /* Una tarjeta: el problema acompaña a la rejilla de ritmos, no compite con ella. */
   .puzzle {
+    position: relative;
     padding: 14px;
     border: 1px solid var(--line);
     border-radius: var(--radius-m);
@@ -304,24 +366,103 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* Columna derecha de la portada en escritorio (mismo corte que `.home`): tablero pequeño. */
+  /* La ventana grande es solo para escritorio: en el móvil el tablero ya ocupa el ancho. */
+  .puzzle-open,
+  .puzzle-cta {
+    display: none;
+  }
+  .puzzle-open {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: none;
+    cursor: pointer;
+  }
+  .puzzle-open:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+  .puzzle:has(.puzzle-open:hover) {
+    border-color: var(--muted);
+  }
+  .puzzle-cta {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--brass);
+  }
+  .puzzle:has(.puzzle-open:hover) .puzzle-cta {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Tablero lo más grande que quepa, con el texto al lado. */
+  .puzzle-dialog {
+    --board: min(640px, calc(100dvh - 72px), calc(100vw - 340px));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.6);
+  }
+  .puzzle-dialog::backdrop {
+    background: rgb(27 33 48 / 0.5);
+  }
+  .dialog-body {
+    display: grid;
+    grid-template-columns: var(--board) 240px;
+    gap: 24px;
+    align-items: start;
+  }
+  .dialog-body h2 {
+    margin: 0 0 14px;
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+  }
+  .dialog-body .puzzle-goal {
+    font-size: 1.05rem;
+  }
+
+  /* Columna derecha de la portada en escritorio (mismo corte que `.home`): la tarjeta
+     llena lo que queda junto a la rejilla de ritmos, con el tablero en vista previa. */
   @media (min-width: 960px) {
-    .puzzle-body {
-      grid-template-columns: 160px 1fr;
-      gap: 12px;
-      align-items: start;
+    /* Su alto lo marca la rejilla (no el contenido): el tablero crece hasta llenarlo. */
+    .puzzle {
+      display: flex;
+      flex-direction: column;
+      container-type: size;
     }
-    .puzzle-goal {
+    .puzzle-open,
+    .puzzle-cta {
+      display: block;
+    }
+    /* La tarjeta solo invita a abrir la ventana: los botones viven allí. */
+    .puzzle .puzzle-actions {
+      display: none;
+    }
+    .puzzle-body {
+      flex: 1;
+      grid-template-columns: min(calc(100cqh - 30px), calc(100cqw - 128px)) 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+    .puzzle .puzzle-goal {
       font-size: 0.92rem;
     }
-    .puzzle-msg {
+    .puzzle .goal-sep {
+      display: none;
+    }
+    .puzzle .goal-n {
+      display: block;
+    }
+    .puzzle .puzzle-msg {
       margin-bottom: 10px;
       font-size: 0.88rem;
-    }
-    .puzzle-actions .btn {
-      min-height: 36px;
-      padding: 0 12px;
-      font-size: 0.85rem;
     }
   }
   @media (max-width: 519px) {
