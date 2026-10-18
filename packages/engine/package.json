@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./bot": "./src/bot.ts",
     "./levels": "./src/levels.ts",
+    "./notation": "./src/notation.ts",
     "./puzzle": "./src/puzzle.ts",
     "./puzzles.json": "./src/puzzles.json"
   },

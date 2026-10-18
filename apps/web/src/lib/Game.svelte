@@ -23,6 +23,7 @@
   import { sound } from './sound';
   import { colorName, endingFor, formatClock, resultText, scoreText } from './format';
   import { BOT_LEVELS } from '@jaque/engine/levels';
+  import { spanishSan } from '@jaque/engine/notation';
   import { botFor, saveBot } from './bot-config';
   import { SITE, pageTitle } from './site';
 
@@ -308,7 +309,7 @@
   });
 
   const movePairs = $derived.by(() => {
-    const sans = game?.sans ?? [];
+    const sans = (game?.sans ?? []).map(spanishSan);
     const rows: { n: number; white?: string; black?: string }[] = [];
     for (let i = 0; i < sans.length; i += 2) rows.push({ n: i / 2 + 1, white: sans[i], black: sans[i + 1] });
     return rows;
