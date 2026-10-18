@@ -21,12 +21,21 @@ export const GROUPS = [
   { goal: 3, min: 1800, max: 2200 }
 ] as const;
 
-/** Problemas por grupo: un año sin repetir. */
-export const GROUP_SIZE = 53;
+/** Problemas al día: el primero es «el del día»; los otros, un extra algo más difícil. */
+export const PER_DAY = 3;
+/** Semanas que dura cada grupo sin repetir: un año. */
+export const WEEKS = 53;
+/**
+ * Problemas por grupo, en bloques de WEEKS: el bloque n da el problema n.º n + 1 de cada día.
+ * El primer bloque es la lista original, así que el primer problema de cada día no cambia.
+ */
+export const GROUP_SIZE = WEEKS * PER_DAY;
 
 export interface DailyPuzzle {
   /** Día en Madrid, 'YYYY-MM-DD'. */
   key: string;
+  /** Posición entre los problemas del día, desde 0. */
+  n: number;
   id: string;
   fen: string;
   /** Jugadas en UCI, alternando quien resuelve y el rival; la última da mate. */
@@ -53,13 +62,18 @@ const EPOCH = Date.UTC(2026, 0, 5);
 const DAY_MS = 86_400_000;
 const mod = (a: number, n: number) => ((a % n) + n) % n;
 
-export function puzzleOfDay(now: Date, data: PuzzleData): DailyPuzzle {
+/** Los PER_DAY problemas de hoy, iguales para todo el mundo. */
+export function puzzlesOfDay(now: Date, data: PuzzleData): DailyPuzzle[] {
   const key = dayKey(now);
   const days = Math.round((Date.parse(`${key}T00:00:00Z`) - EPOCH) / DAY_MS);
   const group = data.days[mod(days, 7)];
-  const [id, fen, moves] = group[mod(Math.floor(days / 7), group.length)];
-  const solution = moves.split(' ');
-  return { key, id, fen, solution, goal: Math.ceil(solution.length / 2) };
+  const weeks = Math.max(1, Math.floor(group.length / PER_DAY));
+  const week = mod(Math.floor(days / 7), weeks);
+  return Array.from({ length: PER_DAY }, (_, n) => {
+    const [id, fen, moves] = group[mod(n * weeks + week, group.length)];
+    const solution = moves.split(' ');
+    return { key, n, id, fen, solution, goal: Math.ceil(solution.length / 2) };
+  });
 }
 
 /** Acierto: `{ reply }` es la contestación del rival, que se aplica con `step()`. */
@@ -92,6 +106,10 @@ export class PuzzleRun {
   get lastMove(): [string, string] | undefined {
     const m = this.chess.history({ verbose: true }).at(-1);
     return m && [m.from, m.to];
+  }
+  /** Jugadas hechas desde la posición del problema, en SAN. */
+  get sans(): string[] {
+    return this.chess.history();
   }
 
   dests(): Map<string, string[]> {

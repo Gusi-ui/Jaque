@@ -1,14 +1,22 @@
-// Genera src/puzzles.json a partir de la base abierta (CC0) de problemas de lichess.
+// Completa src/puzzles.json a partir de la base abierta (CC0) de problemas de lichess.
+// Los problemas que ya hay se quedan donde están (no cambia ninguno ya publicado) y
+// se añaden detrás los más populares que falten hasta GROUP_SIZE, de menos a más Elo.
 // Uso: pnpm --filter @jaque/engine puzzles   (descarga unos 270 MB)
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createZstdDecompress } from 'node:zlib';
 import { Chess } from 'chess.js';
-import { GROUPS, GROUP_SIZE, type PuzzleEntry } from '../src/puzzle.ts';
+import { GROUPS, GROUP_SIZE, type PuzzleData, type PuzzleEntry } from '../src/puzzle.ts';
 
 const URL_DB = 'https://database.lichess.org/lichess_db_puzzle.csv.zst';
+const OUT = new URL('../src/puzzles.json', import.meta.url);
+
+const current: PuzzleEntry[][] = existsSync(OUT)
+  ? (JSON.parse(readFileSync(OUT, 'utf8')) as PuzzleData).days
+  : GROUPS.map(() => []);
+const known = new Set(current.flat().map((e) => e[0]));
 
 interface Candidate {
   entry: PuzzleEntry;
@@ -70,7 +78,7 @@ for await (const line of createInterface({ input: csv, crlfDelay: Infinity })) {
   const goal = Number(/\bmateIn([123])\b/.exec(themes)?.[1]);
   const r = Number(rating);
   const g = GROUPS.findIndex((x) => x.goal === goal && r >= x.min && r < x.max);
-  if (g < 0) continue;
+  if (g < 0 || known.has(id)) continue;
 
   // La primera jugada es la del rival: la posición del problema es la de después.
   const [first, ...solution] = moves.split(' ');
@@ -88,15 +96,17 @@ for await (const line of createInterface({ input: csv, crlfDelay: Infinity })) {
 if (rows < 1_000_000) throw new Error(`Solo se han leído ${rows} filas`);
 
 const days = buckets.map((b, i) => {
-  if (b.length < GROUP_SIZE) throw new Error(`Grupo ${i}: solo ${b.length} problemas`);
-  return b
+  const missing = GROUP_SIZE - current[i].length;
+  if (b.length < missing) throw new Error(`Grupo ${i}: solo ${b.length} problemas nuevos`);
+  const added = b
     .sort((a, z) => z.popularity - a.popularity || z.plays - a.plays)
-    .slice(0, GROUP_SIZE)
+    .slice(0, missing)
     .map((c) => c.entry)
-    .sort((a, z) => a[0].localeCompare(z[0]));
+    .sort((a, z) => a[3] - z[3] || a[0].localeCompare(z[0]));
+  return [...current[i], ...added];
 });
 
 // Un problema por línea: diffs legibles.
 const json = `{"v":1,"days":[\n${days.map((d) => `[\n${d.map((e) => JSON.stringify(e)).join(',\n')}\n]`).join(',\n')}\n]}\n`;
-writeFileSync(new URL('../src/puzzles.json', import.meta.url), json);
+writeFileSync(OUT, json);
 console.log(`puzzles.json: ${days.map((d) => d.length).join(' + ')} problemas`);
