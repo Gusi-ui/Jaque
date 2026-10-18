@@ -625,11 +625,11 @@
   @media (min-width: 960px) {
     .home {
       max-width: 916px;
-      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-columns: minmax(0, 1fr) 360px;
       grid-template-areas:
         'head head'
         'lobby side';
-      column-gap: 48px;
+      column-gap: 32px;
       row-gap: 20px;
     }
     .home-head {
@@ -638,9 +638,14 @@
     .lobby {
       grid-area: lobby;
     }
+    /* El problema del día ocupa el alto que queda hasta el final de la rejilla: se descuenta
+       la línea de `.stats` (su alto mínimo más el hueco de `.lobby`). */
     .side {
       grid-area: side;
+      grid-template-rows: auto 1fr;
+      align-content: stretch;
       gap: 24px;
+      margin-bottom: calc(16px + 0.92rem * 1.4);
     }
     .about {
       max-width: 916px;
