@@ -1,0 +1,19 @@
+# Servidor de archivos del SPA (red interna, HTTP). El HTTPS lo termina el Caddy compartido.
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	root * /srv
+	@immutable path /_app/immutable/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+	# El resto (index.html, manifest…) se revalida siempre para ver las versiones nuevas.
+	@mutable not path /_app/immutable/*
+	header @mutable Cache-Control "no-cache"
+	# La portada es index.html (prerenderizada); cualquier otra ruta sirve 200.html.
+	try_files {path} /200.html
+	file_server {
+		precompressed br gzip
+	}
+}
