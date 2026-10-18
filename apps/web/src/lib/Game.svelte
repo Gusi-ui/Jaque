@@ -16,11 +16,12 @@
   } from '@jaque/shared';
   import Board from './Board.svelte';
   import PromotionPicker, { type PromotionRole } from './PromotionPicker.svelte';
+  import Celebration from './Celebration.svelte';
   import Icon from './Icon.svelte';
   import { connect, type SocketStatus } from './socket';
   import { playerId } from './player';
   import { sound } from './sound';
-  import { colorName, formatClock, resultText, scoreText } from './format';
+  import { colorName, endingFor, formatClock, resultText, scoreText } from './format';
   import { BOT_LEVELS } from '@jaque/engine/levels';
   import { botFor, saveBot } from './bot-config';
   import { SITE, pageTitle } from './site';
@@ -41,6 +42,8 @@
   let flipped = $state(false);
   let promo = $state<{ orig: Key; dest: Key } | null>(null);
   let confirmResign = $state(false);
+  /** El final que se acaba de vivir, para mostrarlo sobre el tablero unos segundos. */
+  let ending = $state<ReturnType<typeof endingFor>>(null);
   /** No se pudo descargar el motor de la máquina (p. ej., pestaña abierta antes de un despliegue). */
   let botFailed = $state(false);
   let copied = $state(false);
@@ -174,6 +177,7 @@
       sound.end();
       confirmResign = false;
       promo = null;
+      if (you) ending = endingFor(next.status, next.winner, you);
     }
   }
 
@@ -407,6 +411,9 @@
       {#if conn !== 'open'}
         <div class="reconnecting" role="status">Reconectando…</div>
       {/if}
+      {#if ending}
+        <Celebration {...ending} ondismiss={() => (ending = null)} />
+      {/if}
     </div>
 
     <div class="area-bottom">{@render playerBar(bottom, 'bottom')}</div>
@@ -528,7 +535,12 @@
           {/if}
         </div>
       {:else if over}
-        <div class="result" role="status">
+        <div
+          class="result"
+          class:won={!!you && game.winner === you}
+          class:lost={!!you && !!game.winner && game.winner !== you}
+          role="status"
+        >
           {#if game.status !== 'aborted'}<p class="score-big">{scoreText(game.winner, game.status)}</p>{/if}
           <p class="headline">{resultText(game.status, game.winner)}</p>
           {#if you && game.winner === you}<p class="hint">Bien jugado.</p>{/if}
@@ -951,8 +963,20 @@
   .offer span {
     flex: 1 0 100%;
   }
+  /* El resultado es una tarjeta: dorada si has ganado, sobria si no. */
   .result {
     margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--surface-2);
+  }
+  .result.won {
+    border-color: var(--brass);
+    background: var(--brass-soft);
+  }
+  .result.won .score-big {
+    color: var(--brass);
   }
   .score-big {
     margin: 0 0 2px;
