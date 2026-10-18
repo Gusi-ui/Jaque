@@ -5,6 +5,7 @@
   import type { Color } from '@jaque/shared';
   import type { DailyPuzzle, PuzzleData, PuzzleRun } from '@jaque/engine/puzzle';
   import type BoardComponent from './Board.svelte';
+  import { spanishSan } from '@jaque/engine/notation';
   import PromotionPicker, { type PromotionRole } from './PromotionPicker.svelte';
   import Celebration from './Celebration.svelte';
   import { sound } from './sound';
@@ -62,7 +63,8 @@
   const allSolved = $derived(results.length > 0 && results.every((r) => r === 'solved'));
   /** Jugadas por filas, como en la partida; si empiezan las negras, la primera fila va con «…». */
   const rows = $derived.by(() => {
-    const sans = side === 'black' ? ['…', ...(view?.sans ?? [])] : (view?.sans ?? []);
+    const played = (view?.sans ?? []).map(spanishSan);
+    const sans = side === 'black' ? ['…', ...played] : played;
     const list: { n: number; white: string; black?: string }[] = [];
     for (let i = 0; i < sans.length; i += 2) list.push({ n: i / 2 + 1, white: sans[i], black: sans[i + 1] });
     return list;
