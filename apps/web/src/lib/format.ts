@@ -25,5 +25,23 @@ export function resultText(status: GameStatus, winner: Color | null) {
   return winner ? `${base}. Ganan ${colorName(winner).toLowerCase()}` : base;
 }
 
+/** Cómo ha terminado la partida para quien la jugaba: lo que se celebra sobre el tablero. */
+export function endingFor(status: GameStatus, winner: Color | null, you: Color) {
+  if (status === 'waiting' || status === 'started' || status === 'aborted') return null;
+  if (!winner) {
+    // «Tablas por triple repetición» → «Por triple repetición»: el título ya dice «Tablas».
+    const why = status === 'timeout' ? 'Tiempo agotado; el rival no puede dar mate' : RESULT_TEXT[status];
+    const detail = why.replace(/^Tablas (\w)/, (_, c: string) => c.toUpperCase());
+    return { tone: 'draw' as const, title: 'Tablas', detail };
+  }
+  const won = winner === you;
+  let detail: string = RESULT_TEXT[status];
+  if (status === 'resign') detail = won ? 'Tu rival ha abandonado' : 'Has abandonado';
+  if (status === 'timeout') detail = won ? 'Tu rival se ha quedado sin tiempo' : 'Te has quedado sin tiempo';
+  return won
+    ? { tone: 'win' as const, title: '¡Victoria!', detail }
+    : { tone: 'loss' as const, title: 'Derrota', detail };
+}
+
 /** 1234 → «1.234» (Intl en español no agrupa los números de cuatro cifras). */
 export const thousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');

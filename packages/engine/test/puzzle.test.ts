@@ -1,10 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { GROUPS, GROUP_SIZE, PuzzleRun, dayKey, puzzleOfDay, type DailyPuzzle, type PuzzleData, type PuzzleEntry } from '../src/puzzle.ts';
+import {
+  GROUPS,
+  GROUP_SIZE,
+  PER_DAY,
+  PuzzleRun,
+  dayKey,
+  puzzlesOfDay,
+  type DailyPuzzle,
+  type PuzzleData,
+  type PuzzleEntry
+} from '../src/puzzle.ts';
 
 const puzzle = (fen: string, solution: string[]): DailyPuzzle => ({
   key: '2026-01-05',
+  n: 0,
   id: 'x',
   fen,
   solution,
@@ -27,21 +38,28 @@ test('dayKey cambia a medianoche de Madrid', () => {
   assert.equal(dayKey(new Date('2026-01-15T23:00:00Z')), '2026-01-16');
 });
 
-test('puzzleOfDay: un grupo por día de la semana y vuelta al empezar', () => {
+test('puzzlesOfDay: un grupo por día de la semana, tres al día y vuelta al empezar', () => {
+  // Dos semanas por grupo: bloques [0, 1] (primer problema), [2, 3] y [4, 5].
   const data: PuzzleData = {
     v: 1,
     days: Array.from({ length: 7 }, (_, d) =>
-      Array.from({ length: 2 }, (_, i): PuzzleEntry => [`d${d}-${i}`, SCHOLAR, 'h5f7', 1000])
+      Array.from({ length: 2 * PER_DAY }, (_, i): PuzzleEntry => [`d${d}-${i}`, SCHOLAR, 'h5f7', 1000])
     )
   };
-  const id = (iso: string) => puzzleOfDay(new Date(iso), data).id;
-  assert.equal(id('2026-01-05T10:00:00Z'), 'd0-0'); // lunes de referencia
-  assert.equal(id('2026-01-11T10:00:00Z'), 'd6-0'); // domingo
-  assert.equal(id('2026-01-12T10:00:00Z'), 'd0-1'); // lunes siguiente
-  assert.equal(id('2026-01-19T10:00:00Z'), 'd0-0'); // vuelta al principio del grupo
-  assert.equal(id('2026-01-04T10:00:00Z'), 'd6-1'); // antes de la fecha de referencia
-  const p = puzzleOfDay(new Date('2026-01-05T10:00:00Z'), data);
-  assert.deepEqual(p, { key: '2026-01-05', id: 'd0-0', fen: SCHOLAR, solution: ['h5f7'], goal: 1 });
+  const ids = (iso: string) => puzzlesOfDay(new Date(iso), data).map((p) => p.id);
+  assert.deepEqual(ids('2026-01-05T10:00:00Z'), ['d0-0', 'd0-2', 'd0-4']); // lunes de referencia
+  assert.deepEqual(ids('2026-01-11T10:00:00Z'), ['d6-0', 'd6-2', 'd6-4']); // domingo
+  assert.deepEqual(ids('2026-01-12T10:00:00Z'), ['d0-1', 'd0-3', 'd0-5']); // lunes siguiente
+  assert.deepEqual(ids('2026-01-19T10:00:00Z'), ['d0-0', 'd0-2', 'd0-4']); // vuelta al principio
+  assert.deepEqual(ids('2026-01-04T10:00:00Z'), ['d6-1', 'd6-3', 'd6-5']); // antes de la referencia
+  const [p] = puzzlesOfDay(new Date('2026-01-05T10:00:00Z'), data);
+  assert.deepEqual(p, { key: '2026-01-05', n: 0, id: 'd0-0', fen: SCHOLAR, solution: ['h5f7'], goal: 1 });
+});
+
+test('puzzlesOfDay: el primer problema de cada día es el de la lista original', () => {
+  const data = JSON.parse(readFileSync(new URL('../src/puzzles.json', import.meta.url), 'utf8')) as PuzzleData;
+  // Lunes 19-10-2026 (semana 41): antes de ampliar la lista salía data.days[0][41].
+  assert.equal(puzzlesOfDay(new Date('2026-10-19T10:00:00Z'), data)[0].id, data.days[0][41][0]);
 });
 
 test('GROUPS: siete grupos, mates en 1, 1, 2, 2, 2, 3, 3', () => {
@@ -93,6 +111,7 @@ test('step() reproduce la solución entera', () => {
   for (let m = run.step(); m; m = run.step()) played.push(m);
   assert.deepEqual(played, ['e2e8', 'd8e8', 'e1e8']);
   assert.ok(run.solved);
+  assert.deepEqual(run.sans, ['Re8+', 'Rxe8', 'Rxe8#']);
 });
 
 test('coronación: completa la pieza y acepta otra que dé mate', () => {
@@ -115,7 +134,7 @@ test('dests: solo las del bando que mueve', () => {
   assert.deepEqual(run.dests().get('h7'), ['h8']);
 });
 
-test('puzzles.json: 7 grupos de 53, soluciones legales que acaban en mate', () => {
+test('puzzles.json: 7 grupos de 159, soluciones legales que acaban en mate', () => {
   const data = JSON.parse(readFileSync(new URL('../src/puzzles.json', import.meta.url), 'utf8')) as PuzzleData;
   assert.equal(data.v, 1);
   assert.equal(data.days.length, 7);
@@ -128,7 +147,7 @@ test('puzzles.json: 7 grupos de 53, soluciones legales que acaban en mate', () =
       assert.ok(rating >= GROUPS[d].min && rating < GROUPS[d].max, `${id}: Elo ${rating}`);
       const solution = moves.split(' ');
       assert.equal(Math.ceil(solution.length / 2), GROUPS[d].goal, `${id}: mate en ${GROUPS[d].goal}`);
-      const run = new PuzzleRun({ key: '', id, fen, solution, goal: GROUPS[d].goal });
+      const run = new PuzzleRun({ key: '', n: 0, id, fen, solution, goal: GROUPS[d].goal });
       for (let i = 0; i < solution.length; i += 2) {
         const r = run.play(solution[i]);
         if (i === solution.length - 1) assert.equal(r, 'solved', id);
