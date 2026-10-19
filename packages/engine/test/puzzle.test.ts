@@ -69,9 +69,13 @@ test('GROUPS: siete grupos, mates en 1, 1, 2, 2, 2, 3, 3', () => {
 test('mate en 1: acierto y fallo', () => {
   const run = new PuzzleRun(puzzle(SCHOLAR, ['h5f7']));
   assert.equal(run.side, 'white');
-  assert.equal(run.play('h5h6'), 'wrong');
-  assert.equal(run.fen, SCHOLAR, 'el fallo no cambia la posición');
   assert.equal(run.play('a1a8'), 'wrong', 'una jugada ilegal es un fallo');
+  assert.equal(run.missed, false, 'la ilegal no queda en el tablero');
+  assert.equal(run.play('h5h6'), 'wrong');
+  assert.ok(run.missed, 'la fallada queda pendiente');
+  assert.equal(run.play('h5f7'), 'wrong', 'hasta decidir, no se juega');
+  run.retry();
+  assert.equal(run.fen, SCHOLAR, 'volver a intentarlo deshace la jugada');
   assert.equal(run.play('h5f7'), 'solved');
   assert.ok(run.solved);
   assert.deepEqual(run.lastMove, ['h5', 'f7']);
@@ -86,6 +90,7 @@ test('mate en 2: contestación con step()', () => {
   const run = new PuzzleRun(puzzle(DOUBLED, ['e2e8', 'd8e8', 'e1e8']));
   assert.equal(run.hint(), 'e2');
   assert.equal(run.play('g1f1'), 'wrong');
+  run.retry();
   assert.deepEqual(run.play('e2e8'), { reply: 'd8e8' });
   assert.equal(run.turn, 'black');
   assert.equal(run.step(), 'd8e8');
@@ -158,4 +163,48 @@ test('puzzles.json: 7 grupos de 159, soluciones legales que acaban en mate', () 
       }
     }
   });
+});
+
+test('seguir la línea: partida libre desde la jugada fallada', () => {
+  const run = new PuzzleRun(puzzle(DOUBLED, ['e2e8', 'd8e8', 'e1e8']));
+  assert.equal(run.play('g1f1'), 'wrong');
+  run.follow();
+  assert.ok(run.line && !run.missed);
+  assert.equal(run.hint(), undefined, 'sin pistas fuera del problema');
+  assert.equal(run.step(), undefined, 'ni solución');
+  assert.equal(run.play('h2h3'), 'wrong', 'play() es solo para el problema');
+  assert.equal(run.turn, 'black');
+  assert.ok(run.playLine('h7h6'), 'juega la máquina');
+  assert.ok(run.playLine('h2h3'), 'y luego quien resuelve');
+  assert.equal(run.playLine('a1a8'), false, 'una ilegal no se juega');
+  assert.deepEqual(run.ucis, ['g1f1', 'h7h6', 'h2h3']);
+  assert.equal(run.outcome, undefined);
+});
+
+test('seguir la línea: victoria, derrota y tablas', () => {
+  // Fallar Re8+ y dar el mate igual dos jugadas después.
+  const win = new PuzzleRun(puzzle(DOUBLED, ['e2e8', 'd8e8', 'e1e8']));
+  win.play('h2h3');
+  win.follow();
+  win.playLine('d8c8');
+  win.playLine('e2e8');
+  win.playLine('c8e8');
+  win.playLine('e1e8');
+  assert.equal(win.outcome, 'win');
+  assert.equal(win.solved, true);
+  assert.equal(win.playLine('g8h8'), false, 'terminada, no se juega más');
+
+  // Avanzar un peón deja el mate en la primera fila a las negras.
+  const loss = new PuzzleRun(puzzle('3r2k1/5ppp/8/8/P7/8/5PPP/6K1 w - - 0 1', ['g1f1']));
+  loss.play('a4a5');
+  loss.follow();
+  loss.playLine('d8d1');
+  assert.equal(loss.outcome, 'loss');
+
+  // Dc7 en lugar de Dc8#: rey ahogado, tablas en cuanto se sigue la línea.
+  const draw = new PuzzleRun(puzzle('k7/8/1K6/8/8/8/8/2Q5 w - - 0 1', ['c1c8']));
+  draw.play('c1c7');
+  assert.equal(draw.outcome, undefined, 'aún no se sigue la línea');
+  draw.follow();
+  assert.equal(draw.outcome, 'draw');
 });

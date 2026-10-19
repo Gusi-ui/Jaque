@@ -3,12 +3,13 @@
   import type { DrawShape } from 'chessground/draw';
   import type { Dests, Key } from 'chessground/types';
   import type { Color } from '@jaque/shared';
-  import type { DailyPuzzle, PuzzleData, PuzzleRun } from '@jaque/engine/puzzle';
+  import type { DailyPuzzle, LineOutcome, PuzzleData, PuzzleRun } from '@jaque/engine/puzzle';
   import type BoardComponent from './Board.svelte';
   import { spanishSan } from '@jaque/engine/notation';
   import PromotionPicker, { type PromotionRole } from './PromotionPicker.svelte';
   import Celebration from './Celebration.svelte';
   import { sound } from './sound';
+  import type { BotReply, BotRequest } from './bot.worker';
 
   interface Props {
     /** Primera vez que el visitante toca el problema. */
@@ -20,6 +21,13 @@
   const STREAK_KEY = 'jaque:racha';
   const REPLY_MS = 350;
   const SOLUTION_MS = 600;
+  /** Al seguir la línea, la máquina no contesta antes de esto. */
+  const BOT_MS = 600;
+  const LINE_END: Record<LineOutcome, string> = {
+    win: 'Has ganado a la máquina.',
+    loss: 'Te ha ganado la máquina.',
+    draw: 'Tablas.'
+  };
 
   type Result = 'solved' | 'shown';
 
@@ -48,6 +56,11 @@
   let busy = $state(false);
   let shapes = $state.raw<DrawShape[]>([]);
   let failed = $state(false);
+  /** Jugada fallada en el tablero: se pregunta si seguir esa línea o volver a intentarlo. */
+  let missed = $state(false);
+  /** Se sigue la línea propia contra la máquina; `outcome`, cuando termina. No cuenta como resuelto. */
+  let line = $state(false);
+  let outcome = $state<LineOutcome>();
   /** Coronación pendiente de elegir pieza. */
   let promo = $state<{ orig: Key; dest: Key } | null>(null);
   /** En escritorio el problema se puede resolver en una ventana con el tablero grande. */
@@ -61,6 +74,8 @@
   /** Cuántos quedan por hacer hoy y si se han resuelto todos sin mirar la solución. */
   const left = $derived(results.filter((r) => !r).length);
   const allSolved = $derived(results.length > 0 && results.every((r) => r === 'solved'));
+  /** Otro problema de hoy sin terminar, o -1. */
+  const other = $derived(results.findIndex((r, i) => !r && i !== puzzle?.n));
   /** Jugadas por filas, como en la partida; si empiezan las negras, la primera fila va con «…». */
   const rows = $derived.by(() => {
     const played = (view?.sans ?? []).map(spanishSan);
@@ -73,6 +88,9 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
   let logic: typeof import('@jaque/engine/puzzle') | undefined;
   let data: PuzzleData | undefined;
+  /** La máquina, en un Web Worker que se crea la primera vez que se sigue una línea. */
+  let bot: Worker | undefined;
+  let request = 0;
 
   onMount(() => {
     let alive = true;
@@ -96,6 +114,7 @@
       alive = false;
       clearTimeout(timer);
       clearInterval(everyMinute);
+      bot?.terminate();
       document.removeEventListener('visibilitychange', onVisible);
     };
   });
@@ -124,6 +143,10 @@
     promo = null;
     shapes = [];
     celebrate = false;
+    missed = false;
+    line = false;
+    outcome = undefined;
+    request++; // lo que estuviera pensando la máquina ya no vale
     result = results[n];
     message = result ? messageFor(result) : 'Encuentra la jugada.';
     if (result) while (run.step());
@@ -205,15 +228,24 @@
 
   function play(uci: string) {
     if (!run) return;
-    const outcome = run.play(uci);
-    if (outcome === 'wrong') {
-      board?.cancelMove();
-      message = 'Esa no es. Prueba otra vez.';
+    if (line) return playLine(uci);
+    const played = run.play(uci);
+    if (played === 'wrong') {
+      if (!run.missed) {
+        board?.cancelMove();
+        message = 'Esa no es. Prueba otra vez.';
+        return;
+      }
+      // La jugada se queda en el tablero hasta que se decida qué hacer con ella.
+      sound.move();
+      sync();
+      missed = true;
+      message = 'No era la jugada esperada. ¿Quieres seguir por esta línea?';
       return;
     }
     sound.move();
     sync();
-    if (outcome === 'solved') return finish('solved');
+    if (played === 'solved') return finish('solved');
     message = '¡Bien! Sigue.';
     busy = true;
     timer = setTimeout(() => {
@@ -222,6 +254,69 @@
       sync();
       busy = false;
     }, REPLY_MS);
+  }
+
+  function retry() {
+    if (!run) return;
+    run.retry();
+    missed = false;
+    sync();
+    message = 'Prueba otra vez.';
+  }
+
+  /** Sigue la partida contra la máquina desde la jugada fallada. */
+  function follow() {
+    if (!run) return;
+    run.follow();
+    missed = false;
+    line = true;
+    afterLineMove();
+  }
+
+  function playLine(uci: string) {
+    if (!run?.playLine(uci)) return board?.cancelMove();
+    sound.move();
+    sync();
+    afterLineMove();
+  }
+
+  function afterLineMove() {
+    if (!run) return;
+    const end = run.outcome;
+    if (end) {
+      outcome = end;
+      busy = false;
+      message = LINE_END[end];
+      sound.end();
+    } else if (run.turn === side) {
+      busy = false;
+      message = run.check ? 'Jaque. Te toca.' : 'Te toca.';
+    } else {
+      machineMove();
+    }
+  }
+
+  function machineMove() {
+    if (!run || !puzzle) return;
+    busy = true;
+    message = 'La máquina piensa…';
+    bot ??= new Worker(new URL('./bot.worker.ts', import.meta.url), { type: 'module' });
+    const req: BotRequest = { id: ++request, fen: puzzle.fen, moves: run.ucis, level: 'linea' };
+    const started = Date.now();
+    bot.onmessage = (e: MessageEvent<BotReply>) => {
+      const { id, uci } = e.data;
+      if (id !== request || !uci) return;
+      timer = setTimeout(
+        () => {
+          if (id !== request || !run?.playLine(uci)) return;
+          sound.move();
+          sync();
+          afterLineMove();
+        },
+        Math.max(0, BOT_MS - (Date.now() - started))
+      );
+    };
+    bot.postMessage(req);
   }
 
   function showHint() {
@@ -315,7 +410,7 @@
       fen={view.fen}
       orientation={side}
       turnColor={view.turn}
-      movableColor={result || busy || promo ? null : side}
+      movableColor={result || busy || promo || missed || outcome ? null : side}
       dests={view.dests}
       lastMove={view.lastMove}
       check={view.check}
@@ -357,9 +452,15 @@
 {#snippet details(large: boolean)}
   {#if puzzle}
     <p class="puzzle-goal">
-      Juegan {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
-        >Mate en {puzzle.goal}</span
-      >
+      {#if line}
+        Juegas con {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
+          >Contra la máquina</span
+        >
+      {:else}
+        Juegan {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
+          >Mate en {puzzle.goal}</span
+        >
+      {/if}
     </p>
     <p class="puzzle-msg" class:solved={result === 'solved'} role={large === big ? 'status' : undefined}>
       {message}
@@ -381,7 +482,17 @@
       </ol>
     {/if}
     <div class="puzzle-actions">
-      {#if !result}
+      {#if missed}
+        <button class="btn primary" onclick={follow}>Seguir esta línea</button>
+        <button class="btn" onclick={retry}>Volver a intentarlo</button>
+      {:else if line && outcome}
+        <button class="btn primary" onclick={() => puzzle && open(puzzle.n)}>Volver a intentarlo</button>
+        {#if other >= 0}
+          <button class="btn" onclick={() => open(other)}>Siguiente problema →</button>
+        {/if}
+      {:else if line}
+        <button class="btn" onclick={() => puzzle && open(puzzle.n)}>Volver al problema</button>
+      {:else if !result}
         <button class="btn" disabled={busy} onclick={showHint}>Pista</button>
         <button class="btn" disabled={busy} onclick={showSolution}>Ver solución</button>
       {:else if left}
@@ -389,7 +500,7 @@
       {/if}
     </div>
     {#if !large && Board && view && (!result || left)}
-      <span class="puzzle-cta" aria-hidden="true">{result ? 'Siguiente →' : 'Resolver →'}</span>
+      <span class="puzzle-cta" aria-hidden="true">{result ? 'Siguiente →' : line || missed ? 'Seguir →' : 'Resolver →'}</span>
     {/if}
   {:else}
     <p class="puzzle-goal">Cargando…</p>

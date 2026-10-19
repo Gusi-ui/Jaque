@@ -94,3 +94,10 @@ test('política: acepta siempre deshacer y nunca lo pide', () => {
   g.takeback('black', true, undefined, 0);
   assert.deepEqual(planBot(view(g), 'black').send, []);
 });
+
+test('juega desde una posición FEN y con el nivel de la línea', () => {
+  // Mate en una de las negras en la primera fila.
+  const fen = '3r2k1/5ppp/8/P7/8/8/5PPP/6K1 b - - 0 1';
+  assert.equal(bestMove([], { fen, level: 'linea', ...noNoise }), 'd8d1');
+  assert.equal(bestMove(['d8d7', 'a5a6'], { fen, level: 'linea', ...noNoise }) !== null, true);
+});
