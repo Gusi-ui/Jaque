@@ -404,6 +404,7 @@
         dests={replay.dests}
         lastMove={shown.lastMove}
         check={shown.check}
+        notify={playing && live}
         onmove={onMove}
       />
       {#if promo}

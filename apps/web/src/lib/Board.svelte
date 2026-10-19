@@ -21,9 +21,29 @@
     onmove?: (orig: Key, dest: Key, meta: MoveMetadata) => void;
     /** Marcas fijas sobre el tablero (la pista del problema del día). */
     shapes?: DrawShape[];
+    /** Avisar con un cartel de cada jaque nuevo (en juego, no al repasar jugadas). */
+    notify?: boolean;
   }
 
-  let { fen, orientation, turnColor, movableColor, dests, lastMove, check, onmove, shapes = [] }: Props = $props();
+  let { fen, orientation, turnColor, movableColor, dests, lastMove, check, onmove, shapes = [], notify = false }: Props =
+    $props();
+
+  /** Cartel de jaque: unos segundos sobre el tablero, una vez por posición. */
+  const NOTICE_MS = 2000;
+  let notice = $state<string | null>(null);
+  let noticed = '';
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    // Sin jugadas no es jaque sino mate: eso lo cuenta la celebración.
+    if (!notify || !check || !dests.size || fen === noticed) return;
+    noticed = fen;
+    notice = movableColor === turnColor ? '¡Jaque! Salva a tu rey' : '¡Jaque!';
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => (notice = null), NOTICE_MS);
+  });
+  $effect(() => {
+    if (!check) notice = null;
+  });
 
   let el: HTMLDivElement;
   let cg: Api | undefined;
@@ -59,7 +79,10 @@
       premovable: { enabled: !!movableColor, showDests: true, castle: true },
       drawable: { ...config().drawable, enabled: true }
     });
-    return () => cg?.destroy();
+    return () => {
+      clearTimeout(noticeTimer);
+      cg?.destroy();
+    };
   });
 
   // Sincronizar con las props cada vez que cambian.
@@ -91,9 +114,44 @@
 
 <div class="board-wrap">
   <div class="board" bind:this={el}></div>
+  {#if notice}
+    <div class="check-notice" role="status">{notice}</div>
+  {/if}
 </div>
 
 <style>
+  /* Encima del tablero sin tapar las jugadas: no recoge los toques. */
+  .check-notice {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 5;
+    transform: translate(-50%, -50%);
+    padding: 10px 20px;
+    border-radius: 99px;
+    background: rgb(190 20 20 / 0.92);
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 800;
+    white-space: nowrap;
+    box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6);
+    pointer-events: none;
+    animation: notice 2s ease-out forwards;
+  }
+  @keyframes notice {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.85);
+    }
+    10%,
+    80% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+      opacity: 0;
+    }
+  }
   .board-wrap {
     position: relative;
     width: 100%;

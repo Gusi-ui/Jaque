@@ -85,11 +85,21 @@
     for (let i = 0; i < sans.length; i += 2) list.push({ n: i / 2 + 1, white: sans[i], black: sans[i + 1] });
     return list;
   });
-  // La lista sigue a la última jugada: hacia abajo en escritorio, hacia la derecha en el móvil.
-  $effect(() => {
-    if (!movesEl || !rows.length) return;
+  // La lista sigue a la última jugada: hacia abajo en escritorio, hacia la derecha en el móvil;
+  // también al cambiar de tamaño (girar el móvil cambia de una a otra).
+  function scrollMoves() {
+    if (!movesEl) return;
     movesEl.scrollTop = movesEl.scrollHeight;
     movesEl.scrollLeft = movesEl.scrollWidth;
+  }
+  $effect(() => {
+    if (rows.length) scrollMoves();
+  });
+  $effect(() => {
+    if (!movesEl) return;
+    const observer = new ResizeObserver(scrollMoves);
+    observer.observe(movesEl);
+    return () => observer.disconnect();
   });
   let touched = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -297,7 +307,7 @@
       sound.end();
     } else if (run.turn === side) {
       busy = false;
-      message = run.check ? 'Jaque. Te toca.' : 'Te toca.';
+      message = run.check ? '¡Jaque! Tienes que salvar a tu rey.' : 'Te toca.';
     } else {
       machineMove();
     }
@@ -422,6 +432,7 @@
       lastMove={view.lastMove}
       check={view.check}
       {shapes}
+      notify={!result}
       onmove={onMove}
     />
     {#if promo}
@@ -469,7 +480,11 @@
         >
       {/if}
     </p>
-    <p class="puzzle-msg" class:solved={result === 'solved'} role={large === big ? 'status' : undefined}>
+    <p
+      class="puzzle-msg"
+      class:solved={result === 'solved'}
+      class:check={line && !outcome && view?.check && view.turn === side}
+      role={large === big ? 'status' : undefined}>
       {message}
     </p>
     {#if result === 'solved' && streak}
@@ -624,6 +639,10 @@
   }
   .puzzle-msg.solved::before {
     content: '✓ ';
+  }
+  .puzzle-msg.check {
+    color: var(--danger);
+    font-weight: 700;
   }
   .puzzle-streak {
     display: inline-block;
