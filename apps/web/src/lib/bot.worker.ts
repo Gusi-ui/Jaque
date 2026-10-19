@@ -1,10 +1,12 @@
 // Web Worker: la búsqueda de la máquina, fuera del hilo de la interfaz.
-import { bestMove, type BotLevel } from '@jaque/engine/bot';
+import { bestMove, type SearchLevel } from '@jaque/engine/bot';
 
 export interface BotRequest {
   id: number;
   moves: string[];
-  level: BotLevel;
+  /** Posición de partida, si no es la inicial (seguir la línea de un problema). */
+  fen?: string;
+  level: SearchLevel;
   budget?: number;
 }
 
@@ -14,7 +16,7 @@ export interface BotReply {
 }
 
 self.onmessage = (e: MessageEvent<BotRequest>) => {
-  const { id, moves, level, budget } = e.data;
-  const reply: BotReply = { id, uci: bestMove(moves, { level, budget }) };
+  const { id, moves, fen, level, budget } = e.data;
+  const reply: BotReply = { id, uci: bestMove(moves, { fen, level, budget }) };
   self.postMessage(reply);
 };

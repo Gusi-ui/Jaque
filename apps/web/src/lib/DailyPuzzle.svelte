@@ -3,12 +3,13 @@
   import type { DrawShape } from 'chessground/draw';
   import type { Dests, Key } from 'chessground/types';
   import type { Color } from '@jaque/shared';
-  import type { DailyPuzzle, PuzzleData, PuzzleRun } from '@jaque/engine/puzzle';
+  import type { DailyPuzzle, LineOutcome, PuzzleData, PuzzleRun } from '@jaque/engine/puzzle';
   import type BoardComponent from './Board.svelte';
   import { spanishSan } from '@jaque/engine/notation';
   import PromotionPicker, { type PromotionRole } from './PromotionPicker.svelte';
   import Celebration from './Celebration.svelte';
   import { sound } from './sound';
+  import type { BotReply, BotRequest } from './bot.worker';
 
   interface Props {
     /** Primera vez que el visitante toca el problema. */
@@ -20,6 +21,13 @@
   const STREAK_KEY = 'jaque:racha';
   const REPLY_MS = 350;
   const SOLUTION_MS = 600;
+  /** Al seguir la línea, la máquina no contesta antes de esto. */
+  const BOT_MS = 600;
+  const LINE_END: Record<LineOutcome, string> = {
+    win: 'Has ganado a la máquina.',
+    loss: 'Te ha ganado la máquina.',
+    draw: 'Tablas.'
+  };
 
   type Result = 'solved' | 'shown';
 
@@ -48,11 +56,17 @@
   let busy = $state(false);
   let shapes = $state.raw<DrawShape[]>([]);
   let failed = $state(false);
+  /** Jugada fallada en el tablero: se pregunta si seguir esa línea o volver a intentarlo. */
+  let missed = $state(false);
+  /** Se sigue la línea propia contra la máquina; `outcome`, cuando termina. No cuenta como resuelto. */
+  let line = $state(false);
+  let outcome = $state<LineOutcome>();
   /** Coronación pendiente de elegir pieza. */
   let promo = $state<{ orig: Key; dest: Key } | null>(null);
-  /** En escritorio el problema se puede resolver en una ventana con el tablero grande. */
+  /** El problema se resuelve en una ventana con el tablero grande (en el móvil, a pantalla completa). */
   let big = $state(false);
   let dialog = $state<HTMLDialogElement>();
+  let movesEl = $state<HTMLOListElement>();
   /** Recién resuelto: se celebra sobre el tablero. */
   let celebrate = $state(false);
   /** Días seguidos resueltos hasta hoy, o 0 si hoy aún no cuenta. */
@@ -61,6 +75,8 @@
   /** Cuántos quedan por hacer hoy y si se han resuelto todos sin mirar la solución. */
   const left = $derived(results.filter((r) => !r).length);
   const allSolved = $derived(results.length > 0 && results.every((r) => r === 'solved'));
+  /** Otro problema de hoy sin terminar, o -1. */
+  const other = $derived(results.findIndex((r, i) => !r && i !== puzzle?.n));
   /** Jugadas por filas, como en la partida; si empiezan las negras, la primera fila va con «…». */
   const rows = $derived.by(() => {
     const played = (view?.sans ?? []).map(spanishSan);
@@ -69,10 +85,29 @@
     for (let i = 0; i < sans.length; i += 2) list.push({ n: i / 2 + 1, white: sans[i], black: sans[i + 1] });
     return list;
   });
+  // La lista sigue a la última jugada: hacia abajo en escritorio, hacia la derecha en el móvil;
+  // también al cambiar de tamaño (girar el móvil cambia de una a otra).
+  function scrollMoves() {
+    if (!movesEl) return;
+    movesEl.scrollTop = movesEl.scrollHeight;
+    movesEl.scrollLeft = movesEl.scrollWidth;
+  }
+  $effect(() => {
+    if (rows.length) scrollMoves();
+  });
+  $effect(() => {
+    if (!movesEl) return;
+    const observer = new ResizeObserver(scrollMoves);
+    observer.observe(movesEl);
+    return () => observer.disconnect();
+  });
   let touched = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let logic: typeof import('@jaque/engine/puzzle') | undefined;
   let data: PuzzleData | undefined;
+  /** La máquina, en un Web Worker que se crea la primera vez que se sigue una línea. */
+  let bot: Worker | undefined;
+  let request = 0;
 
   onMount(() => {
     let alive = true;
@@ -96,6 +131,7 @@
       alive = false;
       clearTimeout(timer);
       clearInterval(everyMinute);
+      bot?.terminate();
       document.removeEventListener('visibilitychange', onVisible);
     };
   });
@@ -124,6 +160,10 @@
     promo = null;
     shapes = [];
     celebrate = false;
+    missed = false;
+    line = false;
+    outcome = undefined;
+    request++; // lo que estuviera pensando la máquina ya no vale
     result = results[n];
     message = result ? messageFor(result) : 'Encuentra la jugada.';
     if (result) while (run.step());
@@ -205,15 +245,24 @@
 
   function play(uci: string) {
     if (!run) return;
-    const outcome = run.play(uci);
-    if (outcome === 'wrong') {
-      board?.cancelMove();
-      message = 'Esa no es. Prueba otra vez.';
+    if (line) return playLine(uci);
+    const played = run.play(uci);
+    if (played === 'wrong') {
+      if (!run.missed) {
+        board?.cancelMove();
+        message = 'Esa no es. Prueba otra vez.';
+        return;
+      }
+      // La jugada se queda en el tablero hasta que se decida qué hacer con ella.
+      sound.move();
+      sync();
+      missed = true;
+      message = 'No era la jugada esperada. ¿Quieres seguir por esta línea?';
       return;
     }
     sound.move();
     sync();
-    if (outcome === 'solved') return finish('solved');
+    if (played === 'solved') return finish('solved');
     message = '¡Bien! Sigue.';
     busy = true;
     timer = setTimeout(() => {
@@ -222,6 +271,69 @@
       sync();
       busy = false;
     }, REPLY_MS);
+  }
+
+  function retry() {
+    if (!run) return;
+    run.retry();
+    missed = false;
+    sync();
+    message = 'Prueba otra vez.';
+  }
+
+  /** Sigue la partida contra la máquina desde la jugada fallada. */
+  function follow() {
+    if (!run) return;
+    run.follow();
+    missed = false;
+    line = true;
+    afterLineMove();
+  }
+
+  function playLine(uci: string) {
+    if (!run?.playLine(uci)) return board?.cancelMove();
+    sound.move();
+    sync();
+    afterLineMove();
+  }
+
+  function afterLineMove() {
+    if (!run) return;
+    const end = run.outcome;
+    if (end) {
+      outcome = end;
+      busy = false;
+      message = LINE_END[end];
+      sound.end();
+    } else if (run.turn === side) {
+      busy = false;
+      message = run.check ? '¡Jaque! Tienes que salvar a tu rey.' : 'Te toca.';
+    } else {
+      machineMove();
+    }
+  }
+
+  function machineMove() {
+    if (!run || !puzzle) return;
+    busy = true;
+    message = 'La máquina piensa…';
+    bot ??= new Worker(new URL('./bot.worker.ts', import.meta.url), { type: 'module' });
+    const req: BotRequest = { id: ++request, fen: puzzle.fen, moves: run.ucis, level: 'linea' };
+    const started = Date.now();
+    bot.onmessage = (e: MessageEvent<BotReply>) => {
+      const { id, uci } = e.data;
+      if (id !== request || !uci) return;
+      timer = setTimeout(
+        () => {
+          if (id !== request || !run?.playLine(uci)) return;
+          sound.move();
+          sync();
+          afterLineMove();
+        },
+        Math.max(0, BOT_MS - (Date.now() - started))
+      );
+    };
+    bot.postMessage(req);
   }
 
   function showHint() {
@@ -315,11 +427,12 @@
       fen={view.fen}
       orientation={side}
       turnColor={view.turn}
-      movableColor={result || busy || promo ? null : side}
+      movableColor={result || busy || promo || missed || outcome ? null : side}
       dests={view.dests}
       lastMove={view.lastMove}
       check={view.check}
       {shapes}
+      notify={!result}
       onmove={onMove}
     />
     {#if promo}
@@ -357,18 +470,28 @@
 {#snippet details(large: boolean)}
   {#if puzzle}
     <p class="puzzle-goal">
-      Juegan {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
-        >Mate en {puzzle.goal}</span
-      >
+      {#if line}
+        Con {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
+          >Contra la máquina</span
+        >
+      {:else}
+        Juegan {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
+          >Mate en {puzzle.goal}</span
+        >
+      {/if}
     </p>
-    <p class="puzzle-msg" class:solved={result === 'solved'} role={large === big ? 'status' : undefined}>
+    <p
+      class="puzzle-msg"
+      class:solved={result === 'solved'}
+      class:check={line && !outcome && view?.check && view.turn === side}
+      role={large === big ? 'status' : undefined}>
       {message}
     </p>
     {#if result === 'solved' && streak}
       <p class="puzzle-streak">🔥 Racha: {streak} {streak === 1 ? 'día' : 'días'}</p>
     {/if}
     {#if large}
-      <ol class="moves" aria-label="Jugadas">
+      <ol class="moves" aria-label="Jugadas" bind:this={movesEl}>
         {#each rows as row (row.n)}
           <li>
             <span class="n">{row.n}.</span>
@@ -381,7 +504,17 @@
       </ol>
     {/if}
     <div class="puzzle-actions">
-      {#if !result}
+      {#if missed}
+        <button class="btn primary" onclick={follow}>Seguir esta línea</button>
+        <button class="btn" onclick={retry}>Reintentar</button>
+      {:else if line && outcome}
+        <button class="btn primary" onclick={() => puzzle && open(puzzle.n)}>Reintentar</button>
+        {#if other >= 0}
+          <button class="btn" onclick={() => open(other)}>Siguiente →</button>
+        {/if}
+      {:else if line}
+        <button class="btn" onclick={() => puzzle && open(puzzle.n)}>Volver al problema</button>
+      {:else if !result}
         <button class="btn" disabled={busy} onclick={showHint}>Pista</button>
         <button class="btn" disabled={busy} onclick={showSolution}>Ver solución</button>
       {:else if left}
@@ -389,7 +522,7 @@
       {/if}
     </div>
     {#if !large && Board && view && (!result || left)}
-      <span class="puzzle-cta" aria-hidden="true">{result ? 'Siguiente →' : 'Resolver →'}</span>
+      <span class="puzzle-cta" aria-hidden="true">{result ? 'Siguiente →' : line || missed ? 'Seguir →' : 'Resolver →'}</span>
     {/if}
   {:else}
     <p class="puzzle-goal">Cargando…</p>
@@ -414,7 +547,7 @@
         {@render details(false)}
       </div>
     </div>
-    <!-- En escritorio la tarjeta entera es una vista previa: se resuelve en grande. -->
+    <!-- La tarjeta entera es una vista previa: se resuelve en grande. -->
     {#if Board && view}
       <button class="puzzle-open" onclick={openBig}>
         <span class="sr-only">{result ? 'Ver el problema del día en grande' : 'Resolver el problema del día en grande'}</span>
@@ -507,6 +640,10 @@
   .puzzle-msg.solved::before {
     content: '✓ ';
   }
+  .puzzle-msg.check {
+    color: var(--danger);
+    font-weight: 700;
+  }
   .puzzle-streak {
     display: inline-block;
     margin: 0 0 12px;
@@ -522,9 +659,8 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* La ventana grande es solo para escritorio: en el móvil el tablero ya ocupa el ancho. */
-  .puzzle-open,
-  .puzzle-cta {
+  /* La tarjeta solo invita a abrir la ventana: los botones viven allí. */
+  .puzzle .puzzle-actions {
     display: none;
   }
   .puzzle-open {
@@ -696,14 +832,6 @@
       flex-direction: column;
       container-type: size;
     }
-    .puzzle-open,
-    .puzzle-cta {
-      display: block;
-    }
-    /* La tarjeta solo invita a abrir la ventana: los botones viven allí. */
-    .puzzle .puzzle-actions {
-      display: none;
-    }
     .puzzle-body {
       flex: 1;
       grid-template-columns: min(calc(100cqh - 30px), calc(100cqw - 128px)) 1fr;
@@ -722,6 +850,119 @@
     .puzzle .puzzle-msg {
       margin-bottom: 10px;
       font-size: 0.88rem;
+    }
+  }
+  /* Móvil y tablet: la ventana ocupa la pantalla entera. */
+  @media (max-width: 959px) {
+    .puzzle-dialog {
+      --board: min(640px, calc(100dvh - 32px), calc(100vw - 300px));
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 16px;
+      border: 0;
+      border-radius: 0;
+    }
+    .dialog-body {
+      gap: 16px;
+    }
+  }
+  /*
+   * En vertical, como la partida en el móvil: el tablero mide lo que quepa en el alto
+   * visible y las jugadas van en una tira debajo (unos 270 px para el resto).
+   */
+  @media (max-width: 959px) and (orientation: portrait) {
+    .puzzle-dialog {
+      --board: min(100%, 600px, max(240px, calc(100dvh - 270px)));
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    }
+    .dialog-body {
+      height: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto auto auto auto 1fr;
+      grid-template-areas:
+        'title title'
+        'goal progress'
+        'board board'
+        'moves moves'
+        'msg msg'
+        'streak streak'
+        'actions actions';
+      gap: 0;
+    }
+    /* Sin su caja: sus hijos se colocan en la rejilla. */
+    .dialog-body .puzzle-text {
+      display: contents;
+    }
+    .dialog-body h2 {
+      grid-area: title;
+      margin: 0 0 4px;
+      line-height: 38px;
+      font-size: 1.2rem;
+    }
+    /* Siempre en una línea: si el tablero se moviera, chessground soltaría las piezas donde no es. */
+    .dialog-body .puzzle-goal {
+      grid-area: goal;
+      margin: 0 8px 10px 0;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dialog-progress {
+      grid-area: progress;
+      margin: 0;
+    }
+    .dialog-body .puzzle-board {
+      grid-area: board;
+      width: var(--board);
+      justify-self: center;
+    }
+    .dialog-body .moves {
+      grid-area: moves;
+      display: flex;
+      gap: 2px 12px;
+      min-height: 0;
+      margin: 10px 0 8px;
+      padding: 6px 4px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    .dialog-body .moves li,
+    .dialog-body .moves li:nth-child(even) {
+      display: flex;
+      gap: 6px;
+      padding: 0 4px;
+      background: none;
+    }
+    .dialog-body .moves .n {
+      font-size: 0.85rem;
+    }
+    .dialog-body .puzzle-msg {
+      grid-area: msg;
+      min-height: 0;
+      margin: 0 0 8px;
+    }
+    .dialog-body .puzzle-streak {
+      grid-area: streak;
+      justify-self: start;
+    }
+    .dialog-body .puzzle-actions {
+      grid-area: actions;
+      align-self: end;
+      flex-wrap: nowrap;
+      padding-top: 0;
+    }
+    .dialog-body .puzzle-actions .btn {
+      flex: 1 1 auto;
+      padding: 0 12px;
+      white-space: nowrap;
     }
   }
   @media (max-width: 519px) {
