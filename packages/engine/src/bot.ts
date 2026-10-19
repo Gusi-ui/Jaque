@@ -32,9 +32,13 @@ interface LevelConfig {
   budget: number;
 }
 
-const LEVELS: Record<BotLevel, LevelConfig> = {
+/** Los niveles que se eligen al jugar y uno entre Medio y Difícil para seguir la línea de un problema. */
+export type SearchLevel = BotLevel | 'linea';
+
+const LEVELS: Record<SearchLevel, LevelConfig> = {
   1: { depth: 1, quiescence: false, noise: 250, blunder: 0.2, budget: 200 },
   2: { depth: 2, quiescence: true, noise: 60, blunder: 0, budget: 800 },
+  linea: { depth: 3, quiescence: true, noise: 30, blunder: 0, budget: 1200 },
   3: { depth: 4, quiescence: true, noise: 10, blunder: 0, budget: 1500 }
 };
 
@@ -147,7 +151,9 @@ function toUci(pos: Position, move: NormalMove): string {
 }
 
 interface SearchOptions {
-  level?: BotLevel;
+  level?: SearchLevel;
+  /** Posición de partida en FEN; por defecto, la inicial. */
+  fen?: string;
   /** Fuente de aleatoriedad (inyectable en las pruebas). */
   random?: () => number;
   /** Reloj en ms (inyectable en las pruebas). */
@@ -156,9 +162,9 @@ interface SearchOptions {
   budget?: number;
 }
 
-/** Posición tras las jugadas (UCI estándar) desde la posición inicial. */
-export function positionAfter(moves: string[]): Chess {
-  const pos = Chess.default();
+/** Posición tras las jugadas (UCI estándar) desde la inicial o desde `fen`. */
+export function positionAfter(moves: string[], fen?: string): Chess {
+  const pos = fen ? Chess.fromSetup(parseFen(fen).unwrap()).unwrap() : Chess.default();
   for (const uci of moves) pos.play(normalizeMove(pos, parseUci(uci)!));
   return pos;
 }
@@ -173,7 +179,7 @@ export function bestMove(moves: string[], opts: SearchOptions = {}): string | nu
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.budget ?? cfg.budget);
 
-  const rootPos = positionAfter(moves);
+  const rootPos = positionAfter(moves, opts.fen);
   const root = legalMoves(rootPos);
   if (!root.length) return null;
   if (random() < cfg.blunder) return toUci(rootPos, root[Math.floor(random() * root.length)].move);

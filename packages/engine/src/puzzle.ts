@@ -79,10 +79,21 @@ export function puzzlesOfDay(now: Date, data: PuzzleData): DailyPuzzle[] {
 /** Acierto: `{ reply }` es la contestación del rival, que se aplica con `step()`. */
 export type PlayResult = 'wrong' | 'solved' | { reply: string };
 
-/** Un intento de resolver un problema. */
+/** Cómo acaba la partida al seguir la línea, para quien resuelve. */
+export type LineOutcome = 'win' | 'loss' | 'draw';
+
+/**
+ * Un intento de resolver un problema. Una jugada que no es la de la solución
+ * queda en el tablero a la espera: `retry()` la deshace y `follow()` sigue por
+ * esa línea, ya como partida libre contra la máquina.
+ */
 export class PuzzleRun {
   private readonly chess: Chess;
   private ply = 0;
+  /** Hay una jugada fallada en el tablero, pendiente de seguirla o deshacerla. */
+  missed = false;
+  /** Se sigue la línea propia: se juega libre, sin solución. */
+  line = false;
   /** Bando de quien resuelve. */
   readonly side: Color;
 
@@ -111,6 +122,16 @@ export class PuzzleRun {
   get sans(): string[] {
     return this.chess.history();
   }
+  /** Las mismas, en UCI: lo que necesita la máquina. */
+  get ucis(): string[] {
+    return this.chess.history({ verbose: true }).map((m) => m.lan);
+  }
+  /** Fin de la partida al seguir la línea; undefined mientras sigue. */
+  get outcome(): LineOutcome | undefined {
+    if (!this.line || !this.chess.isGameOver()) return undefined;
+    if (!this.chess.isCheckmate()) return 'draw';
+    return this.turn === this.side ? 'loss' : 'win';
+  }
 
   dests(): Map<string, string[]> {
     const dests = new Map<string, string[]>();
@@ -135,8 +156,9 @@ export class PuzzleRun {
     return this.chess.get(orig as Square)?.type === 'p' && (dest[1] === '8' || dest[1] === '1');
   }
 
+  /** Una jugada de quien resuelve. Si no es la de la solución, queda pendiente (`missed`). */
   play(uci: string): PlayResult {
-    if (this.solved || this.turn !== this.side) return 'wrong';
+    if (this.missed || this.line || this.solved || this.turn !== this.side) return 'wrong';
     try {
       this.move(uci);
     } catch {
@@ -147,7 +169,7 @@ export class PuzzleRun {
       return 'solved';
     }
     if (uci !== this.puzzle.solution[this.ply]) {
-      this.chess.undo();
+      this.missed = true;
       return 'wrong';
     }
     this.ply++;
@@ -155,8 +177,34 @@ export class PuzzleRun {
     return reply ? { reply } : 'solved';
   }
 
+  /** Deshace la jugada fallada: se vuelve a intentar desde la misma posición. */
+  retry() {
+    if (!this.missed) return;
+    this.chess.undo();
+    this.missed = false;
+  }
+
+  /** Se queda con la jugada fallada y sigue la partida desde ahí. */
+  follow() {
+    if (!this.missed) return;
+    this.missed = false;
+    this.line = true;
+  }
+
+  /** Una jugada al seguir la línea, de cualquiera de los dos bandos. */
+  playLine(uci: string): boolean {
+    if (!this.line || this.chess.isGameOver()) return false;
+    try {
+      this.move(uci);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Juega la siguiente jugada de la solución, de quien resuelve o del rival. */
   step(): string | undefined {
+    if (this.missed || this.line) return undefined;
     const uci = this.puzzle.solution[this.ply];
     if (!uci) return undefined;
     this.move(uci);
@@ -166,7 +214,8 @@ export class PuzzleRun {
 
   /** Casilla de la pieza que hay que mover. */
   hint(): string | undefined {
-    return this.solved ? undefined : this.puzzle.solution[this.ply]?.slice(0, 2);
+    if (this.solved || this.missed || this.line) return undefined;
+    return this.puzzle.solution[this.ply]?.slice(0, 2);
   }
 
   private move(uci: string) {

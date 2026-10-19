@@ -179,8 +179,16 @@ cg-board square.oc.premove-dest {
 cg-board square.current-premove {
   background-color: rgb(40 70 150 / 0.45);
 }
+/* El rey en jaque tiene que verse a la primera: casilla roja con borde y un latido al aparecer. */
 cg-board square.check {
-  background: radial-gradient(ellipse at center, rgb(220 40 30) 0%, rgb(220 40 30 / 0.7) 30%, transparent 75%);
+  background: radial-gradient(ellipse at center, rgb(255 40 30) 0%, rgb(230 30 20 / 0.9) 45%, rgb(200 20 20 / 0.55) 100%);
+  box-shadow: inset 0 0 0 3px rgb(170 10 10);
+  animation: check-pulse 0.7s ease-in-out 3;
+}
+@keyframes check-pulse {
+  50% {
+    box-shadow: inset 0 0 0 7px rgb(255 70 50);
+  }
 }
 
 .orientation-white .ranks :nth-child(odd),
