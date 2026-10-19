@@ -63,9 +63,10 @@
   let outcome = $state<LineOutcome>();
   /** Coronación pendiente de elegir pieza. */
   let promo = $state<{ orig: Key; dest: Key } | null>(null);
-  /** En escritorio el problema se puede resolver en una ventana con el tablero grande. */
+  /** El problema se resuelve en una ventana con el tablero grande (en el móvil, a pantalla completa). */
   let big = $state(false);
   let dialog = $state<HTMLDialogElement>();
+  let movesEl = $state<HTMLOListElement>();
   /** Recién resuelto: se celebra sobre el tablero. */
   let celebrate = $state(false);
   /** Días seguidos resueltos hasta hoy, o 0 si hoy aún no cuenta. */
@@ -83,6 +84,12 @@
     const list: { n: number; white: string; black?: string }[] = [];
     for (let i = 0; i < sans.length; i += 2) list.push({ n: i / 2 + 1, white: sans[i], black: sans[i + 1] });
     return list;
+  });
+  // La lista sigue a la última jugada: hacia abajo en escritorio, hacia la derecha en el móvil.
+  $effect(() => {
+    if (!movesEl || !rows.length) return;
+    movesEl.scrollTop = movesEl.scrollHeight;
+    movesEl.scrollLeft = movesEl.scrollWidth;
   });
   let touched = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -453,7 +460,7 @@
   {#if puzzle}
     <p class="puzzle-goal">
       {#if line}
-        Juegas con {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
+        Con {side === 'white' ? 'blancas' : 'negras'}<span class="goal-sep">{' · '}</span><span class="goal-n"
           >Contra la máquina</span
         >
       {:else}
@@ -469,7 +476,7 @@
       <p class="puzzle-streak">🔥 Racha: {streak} {streak === 1 ? 'día' : 'días'}</p>
     {/if}
     {#if large}
-      <ol class="moves" aria-label="Jugadas">
+      <ol class="moves" aria-label="Jugadas" bind:this={movesEl}>
         {#each rows as row (row.n)}
           <li>
             <span class="n">{row.n}.</span>
@@ -484,11 +491,11 @@
     <div class="puzzle-actions">
       {#if missed}
         <button class="btn primary" onclick={follow}>Seguir esta línea</button>
-        <button class="btn" onclick={retry}>Volver a intentarlo</button>
+        <button class="btn" onclick={retry}>Reintentar</button>
       {:else if line && outcome}
-        <button class="btn primary" onclick={() => puzzle && open(puzzle.n)}>Volver a intentarlo</button>
+        <button class="btn primary" onclick={() => puzzle && open(puzzle.n)}>Reintentar</button>
         {#if other >= 0}
-          <button class="btn" onclick={() => open(other)}>Siguiente problema →</button>
+          <button class="btn" onclick={() => open(other)}>Siguiente →</button>
         {/if}
       {:else if line}
         <button class="btn" onclick={() => puzzle && open(puzzle.n)}>Volver al problema</button>
@@ -525,7 +532,7 @@
         {@render details(false)}
       </div>
     </div>
-    <!-- En escritorio la tarjeta entera es una vista previa: se resuelve en grande. -->
+    <!-- La tarjeta entera es una vista previa: se resuelve en grande. -->
     {#if Board && view}
       <button class="puzzle-open" onclick={openBig}>
         <span class="sr-only">{result ? 'Ver el problema del día en grande' : 'Resolver el problema del día en grande'}</span>
@@ -633,9 +640,8 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* La ventana grande es solo para escritorio: en el móvil el tablero ya ocupa el ancho. */
-  .puzzle-open,
-  .puzzle-cta {
+  /* La tarjeta solo invita a abrir la ventana: los botones viven allí. */
+  .puzzle .puzzle-actions {
     display: none;
   }
   .puzzle-open {
@@ -807,14 +813,6 @@
       flex-direction: column;
       container-type: size;
     }
-    .puzzle-open,
-    .puzzle-cta {
-      display: block;
-    }
-    /* La tarjeta solo invita a abrir la ventana: los botones viven allí. */
-    .puzzle .puzzle-actions {
-      display: none;
-    }
     .puzzle-body {
       flex: 1;
       grid-template-columns: min(calc(100cqh - 30px), calc(100cqw - 128px)) 1fr;
@@ -833,6 +831,119 @@
     .puzzle .puzzle-msg {
       margin-bottom: 10px;
       font-size: 0.88rem;
+    }
+  }
+  /* Móvil y tablet: la ventana ocupa la pantalla entera. */
+  @media (max-width: 959px) {
+    .puzzle-dialog {
+      --board: min(640px, calc(100dvh - 32px), calc(100vw - 300px));
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 16px;
+      border: 0;
+      border-radius: 0;
+    }
+    .dialog-body {
+      gap: 16px;
+    }
+  }
+  /*
+   * En vertical, como la partida en el móvil: el tablero mide lo que quepa en el alto
+   * visible y las jugadas van en una tira debajo (unos 270 px para el resto).
+   */
+  @media (max-width: 959px) and (orientation: portrait) {
+    .puzzle-dialog {
+      --board: min(100%, 600px, max(240px, calc(100dvh - 270px)));
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    }
+    .dialog-body {
+      height: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto auto auto auto 1fr;
+      grid-template-areas:
+        'title title'
+        'goal progress'
+        'board board'
+        'moves moves'
+        'msg msg'
+        'streak streak'
+        'actions actions';
+      gap: 0;
+    }
+    /* Sin su caja: sus hijos se colocan en la rejilla. */
+    .dialog-body .puzzle-text {
+      display: contents;
+    }
+    .dialog-body h2 {
+      grid-area: title;
+      margin: 0 0 4px;
+      line-height: 38px;
+      font-size: 1.2rem;
+    }
+    /* Siempre en una línea: si el tablero se moviera, chessground soltaría las piezas donde no es. */
+    .dialog-body .puzzle-goal {
+      grid-area: goal;
+      margin: 0 8px 10px 0;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dialog-progress {
+      grid-area: progress;
+      margin: 0;
+    }
+    .dialog-body .puzzle-board {
+      grid-area: board;
+      width: var(--board);
+      justify-self: center;
+    }
+    .dialog-body .moves {
+      grid-area: moves;
+      display: flex;
+      gap: 2px 12px;
+      min-height: 0;
+      margin: 10px 0 8px;
+      padding: 6px 4px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    .dialog-body .moves li,
+    .dialog-body .moves li:nth-child(even) {
+      display: flex;
+      gap: 6px;
+      padding: 0 4px;
+      background: none;
+    }
+    .dialog-body .moves .n {
+      font-size: 0.85rem;
+    }
+    .dialog-body .puzzle-msg {
+      grid-area: msg;
+      min-height: 0;
+      margin: 0 0 8px;
+    }
+    .dialog-body .puzzle-streak {
+      grid-area: streak;
+      justify-self: start;
+    }
+    .dialog-body .puzzle-actions {
+      grid-area: actions;
+      align-self: end;
+      flex-wrap: nowrap;
+      padding-top: 0;
+    }
+    .dialog-body .puzzle-actions .btn {
+      flex: 1 1 auto;
+      padding: 0 12px;
+      white-space: nowrap;
     }
   }
   @media (max-width: 519px) {
